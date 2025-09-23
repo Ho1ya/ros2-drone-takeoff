@@ -51,6 +51,20 @@ ros2 launch drone_takeoff qr_detector.launch.py \
 ros2 topic echo /qr_detector/text
 ```
 
+## Range sensors (LiDAR + Ultrasonic)
+Listen to LiDAR (`sensor_msgs/LaserScan`) and ultrasonic (`sensor_msgs/Range`).
+
+```bash
+# Launch both listeners
+ros2 launch drone_takeoff range_sensors.launch.py \
+  scan_topic:=/scan \
+  range_topic:=/ultrasonic
+
+# Inspect topics
+ros2 topic echo /scan
+ros2 topic echo /ultrasonic
+```
+
 ## Parameters
 - `connection_url` (string): MAVSDK connection URL (default `udp://:14540`).
 - `takeoff_altitude_m` (double): Takeoff altitude meters (default 5.0).
@@ -59,6 +73,8 @@ ros2 topic echo /qr_detector/text
 - `image_topic` (string): Camera topic for QR detector (default `uav1/camera_down`).
 - `publish_text_topic` (string): Output decoded text topic (default `/qr_detector/text`).
 - `show_debug_window` (bool): Show OpenCV window (default `false`).
+- `scan_topic` (string): LiDAR scan topic (default `/scan`).
+- `range_topic` (string): Ultrasonic range topic (default `/ultrasonic`).
 
 ## Notes
 - For ArduPilot SITL, adapt URLs (e.g. `udp://:14550`).

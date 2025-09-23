@@ -23,6 +23,8 @@ setup(
         'console_scripts': [
             'takeoff_node = drone_takeoff.takeoff_node:main',
             'qr_detector_node = drone_takeoff.qr_detector_node:main',
+            'lidar_listener_node = drone_takeoff.lidar_listener_node:main',
+            'ultrasonic_listener_node = drone_takeoff.ultrasonic_listener_node:main',
         ],
     },
 )
