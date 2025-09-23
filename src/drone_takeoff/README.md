@@ -43,7 +43,7 @@ Subscribe to a camera `sensor_msgs/Image` topic and decode QR codes with OpenCV.
 ```bash
 # Defaults use bottom camera topic
 ros2 launch drone_takeoff qr_detector.launch.py \
-  image_topic:=uav1/camera_down \
+  image_topic:=/uav1/camera_down \
   publish_text_topic:=/qr_detector/text \
   show_debug_window:=false
 
@@ -55,32 +55,28 @@ ros2 topic echo /qr_detector/text
 Listen to LiDAR (`sensor_msgs/LaserScan`) and ultrasonic (`sensor_msgs/Range`).
 
 ```bash
-# Launch both listeners
+# Launch both listeners (ultrasonic optional)
 ros2 launch drone_takeoff range_sensors.launch.py \
-  scan_topic:=/scan \
-  range_topic:=/ultrasonic
+  scan_topic:=/uav1/scan \
+  range_topic:='' 
 
 # Inspect topics
-ros2 topic echo /scan
-ros2 topic echo /ultrasonic
+ros2 topic echo /uav1/scan
 ```
 
 ## Autonomy: explore, avoid walls/doorways, stop on QR, safe land
-The autonomy node uses MAVSDK offboard velocity control. Sensors are optional:
-- LiDAR: `scan_topic` — gap detection for wall avoidance and doorways.
-- Ultrasonic/forward range: `range_topic` — simple stop/rotate.
-- Forward depth camera: `depth_topic` — uses center ROI average as forward distance (`depth_obstacle_distance_m`, `depth_center_fraction`).
-- IMU: `imu_topic` — throttles yaw if angular speed is high to improve stability.
+The autonomy node uses MAVSDK offboard velocity control. Sensors are optional and defaulted to your topics:
+- LiDAR: `/uav1/scan` — gap detection for wall avoidance and doorways.
+- Forward depth camera: `/uav1/depth_camera` — center ROI average as forward distance.
+- IMU: `/uav1/mavros/imu/data` — throttles yaw if angular speed is high to improve stability.
+- QR text: `/qr_detector/text` (from bottom camera `/uav1/camera_down`).
 
 ```bash
 ros2 launch drone_takeoff autonomy.launch.py \
   connection_url:=udp://:14540 \
-  scan_topic:='' \
-  range_topic:=/ultrasonic \
-  depth_topic:=/camera/depth/image_raw \
-  depth_obstacle_distance_m:=1.0 \
-  depth_center_fraction:=0.25 \
-  imu_topic:=/imu \
+  scan_topic:=/uav1/scan \
+  depth_topic:=/uav1/depth_camera \
+  imu_topic:=/uav1/mavros/imu/data \
   qr_text_topic:=/qr_detector/text \
   takeoff_altitude_m:=3.0 \
   cruise_speed_m_s:=1.0 \
@@ -95,15 +91,15 @@ ros2 launch drone_takeoff autonomy.launch.py \
 - `takeoff_altitude_m` (double): Takeoff altitude meters (default 5.0).
 - `arm_timeout_s` (double): Timeout for arming (default 10.0).
 - `connect_timeout_s` (double): Timeout for connection (default 20.0).
-- `image_topic` (string): Camera topic for QR detector (default `uav1/camera_down`).
+- `image_topic` (string): Camera topic for QR detector (default `/uav1/camera_down`).
 - `publish_text_topic` (string): Output decoded text topic (default `/qr_detector/text`).
 - `show_debug_window` (bool): Show OpenCV window (default `false`).
-- `scan_topic` (string): LiDAR scan topic (empty disables LiDAR).
+- `scan_topic` (string): LiDAR scan topic (default `/uav1/scan`).
 - `range_topic` (string): Ultrasonic range topic (empty disables ultrasonic).
-- `depth_topic` (string): Forward depth image topic (empty disables depth).
+- `depth_topic` (string): Forward depth image topic (default `/uav1/depth_camera`).
 - `depth_obstacle_distance_m` (double): Threshold to treat as obstacle (meters).
 - `depth_center_fraction` (double): Fraction of image width/height for center ROI (0-1).
-- `imu_topic` (string): IMU topic (empty disables IMU).
+- `imu_topic` (string): IMU topic (default `/uav1/mavros/imu/data`).
 - Autonomy specific: `cruise_speed_m_s`, `wall_distance_min_m`, `doorway_min_width_rad`, `control_rate_hz`, `max_yaw_rate_deg_s`.
 
 ## Notes

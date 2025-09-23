@@ -5,12 +5,12 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description() -> LaunchDescription:
-    scan_topic = LaunchConfiguration('scan_topic', default='/scan')
-    range_topic = LaunchConfiguration('range_topic', default='/ultrasonic')
+    scan_topic = LaunchConfiguration('scan_topic', default='/uav1/scan')
+    range_topic = LaunchConfiguration('range_topic', default='')
 
     return LaunchDescription([
-        DeclareLaunchArgument('scan_topic', default_value='/scan'),
-        DeclareLaunchArgument('range_topic', default_value='/ultrasonic'),
+        DeclareLaunchArgument('scan_topic', default_value='/uav1/scan'),
+        DeclareLaunchArgument('range_topic', default_value=''),
         Node(
             package='drone_takeoff',
             executable='lidar_listener_node',
