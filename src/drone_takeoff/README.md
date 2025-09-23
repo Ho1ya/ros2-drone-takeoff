@@ -67,15 +67,20 @@ ros2 topic echo /ultrasonic
 
 ## Autonomy: explore, avoid walls/doorways, stop on QR, safe land
 The autonomy node uses MAVSDK offboard velocity control. Sensors are optional:
-- If `scan_topic` is set (LiDAR), uses gap detection for wall avoidance and doorways.
-- If only `range_topic` is set (ultrasonic forward), uses simple forward obstacle stop/rotate.
-- If no sensors, it crawls slowly and rotates to search (use with caution).
+- LiDAR: `scan_topic` — gap detection for wall avoidance and doorways.
+- Ultrasonic/forward range: `range_topic` — simple stop/rotate.
+- Forward depth camera: `depth_topic` — uses center ROI average as forward distance (`depth_obstacle_distance_m`, `depth_center_fraction`).
+- IMU: `imu_topic` — throttles yaw if angular speed is high to improve stability.
 
 ```bash
 ros2 launch drone_takeoff autonomy.launch.py \
   connection_url:=udp://:14540 \
   scan_topic:='' \
   range_topic:=/ultrasonic \
+  depth_topic:=/camera/depth/image_raw \
+  depth_obstacle_distance_m:=1.0 \
+  depth_center_fraction:=0.25 \
+  imu_topic:=/imu \
   qr_text_topic:=/qr_detector/text \
   takeoff_altitude_m:=3.0 \
   cruise_speed_m_s:=1.0 \
@@ -95,6 +100,10 @@ ros2 launch drone_takeoff autonomy.launch.py \
 - `show_debug_window` (bool): Show OpenCV window (default `false`).
 - `scan_topic` (string): LiDAR scan topic (empty disables LiDAR).
 - `range_topic` (string): Ultrasonic range topic (empty disables ultrasonic).
+- `depth_topic` (string): Forward depth image topic (empty disables depth).
+- `depth_obstacle_distance_m` (double): Threshold to treat as obstacle (meters).
+- `depth_center_fraction` (double): Fraction of image width/height for center ROI (0-1).
+- `imu_topic` (string): IMU topic (empty disables IMU).
 - Autonomy specific: `cruise_speed_m_s`, `wall_distance_min_m`, `doorway_min_width_rad`, `control_rate_hz`, `max_yaw_rate_deg_s`.
 
 ## Notes

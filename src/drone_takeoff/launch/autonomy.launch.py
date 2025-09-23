@@ -15,6 +15,10 @@ def generate_launch_description() -> LaunchDescription:
     doorway_min_width_rad = LaunchConfiguration('doorway_min_width_rad', default='0.35')
     control_rate_hz = LaunchConfiguration('control_rate_hz', default='10.0')
     max_yaw_rate_deg_s = LaunchConfiguration('max_yaw_rate_deg_s', default='45.0')
+    depth_topic = LaunchConfiguration('depth_topic', default='')
+    depth_obstacle_distance_m = LaunchConfiguration('depth_obstacle_distance_m', default='1.0')
+    depth_center_fraction = LaunchConfiguration('depth_center_fraction', default='0.25')
+    imu_topic = LaunchConfiguration('imu_topic', default='')
 
     return LaunchDescription([
         DeclareLaunchArgument('connection_url', default_value='udp://:14540'),
@@ -27,6 +31,10 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument('doorway_min_width_rad', default_value='0.35'),
         DeclareLaunchArgument('control_rate_hz', default_value='10.0'),
         DeclareLaunchArgument('max_yaw_rate_deg_s', default_value='45.0'),
+        DeclareLaunchArgument('depth_topic', default_value=''),
+        DeclareLaunchArgument('depth_obstacle_distance_m', default_value='1.0'),
+        DeclareLaunchArgument('depth_center_fraction', default_value='0.25'),
+        DeclareLaunchArgument('imu_topic', default_value=''),
         Node(
             package='drone_takeoff',
             executable='autonomy_node',
@@ -43,6 +51,10 @@ def generate_launch_description() -> LaunchDescription:
                 'doorway_min_width_rad': doorway_min_width_rad,
                 'control_rate_hz': control_rate_hz,
                 'max_yaw_rate_deg_s': max_yaw_rate_deg_s,
+                'depth_topic': depth_topic,
+                'depth_obstacle_distance_m': depth_obstacle_distance_m,
+                'depth_center_fraction': depth_center_fraction,
+                'imu_topic': imu_topic,
             }],
         ),
     ])

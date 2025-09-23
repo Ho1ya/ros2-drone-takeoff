@@ -6,7 +6,8 @@ from typing import List, Optional, Tuple
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
-from sensor_msgs.msg import LaserScan, Range
+from sensor_msgs.msg import LaserScan, Range, Image, Imu
+from cv_bridge import CvBridge
 from std_msgs.msg import String
 
 from mavsdk import System
@@ -35,6 +36,11 @@ class AutonomyNode(Node):
         self.declare_parameter('doorway_min_width_rad', 0.35)
         self.declare_parameter('control_rate_hz', 10.0)
         self.declare_parameter('max_yaw_rate_deg_s', 45.0)
+        # Optional depth camera + IMU
+        self.declare_parameter('depth_topic', '')
+        self.declare_parameter('depth_obstacle_distance_m', 1.0)
+        self.declare_parameter('depth_center_fraction', 0.25)
+        self.declare_parameter('imu_topic', '')
 
         self.connection_url: str = self.get_parameter('connection_url').get_parameter_value().string_value
         self.scan_topic: str = self.get_parameter('scan_topic').get_parameter_value().string_value
@@ -46,10 +52,17 @@ class AutonomyNode(Node):
         self.doorway_min_width_rad: float = float(self.get_parameter('doorway_min_width_rad').value)
         self.control_period_s: float = 1.0 / float(self.get_parameter('control_rate_hz').value)
         self.max_yaw_rate_deg_s: float = float(self.get_parameter('max_yaw_rate_deg_s').value)
+        self.depth_topic: str = self.get_parameter('depth_topic').get_parameter_value().string_value
+        self.depth_obstacle_distance_m: float = float(self.get_parameter('depth_obstacle_distance_m').value)
+        self.depth_center_fraction: float = float(self.get_parameter('depth_center_fraction').value)
+        self.imu_topic: str = self.get_parameter('imu_topic').get_parameter_value().string_value
 
         # State
         self._scan_msg: Optional[LaserScan] = None
         self._range_msg: Optional[Range] = None
+        self._depth_center_dist_m: Optional[float] = None
+        self._imu_angular_speed: Optional[float] = None
+        self._cv_bridge: Optional[CvBridge] = None
         self._qr_text: Optional[str] = None
         self._state_lock = threading.Lock()
         self._running = True
@@ -66,6 +79,19 @@ class AutonomyNode(Node):
             self.get_logger().info(f'Autonomy: subscribing Range on {self.range_topic}')
         else:
             self.get_logger().info('Autonomy: Range disabled (range_topic empty)')
+
+        if self.depth_topic:
+            self._cv_bridge = CvBridge()
+            self.create_subscription(Image, self.depth_topic, self._on_depth, 5)
+            self.get_logger().info(f'Autonomy: subscribing Depth image on {self.depth_topic}')
+        else:
+            self.get_logger().info('Autonomy: Depth disabled (depth_topic empty)')
+
+        if self.imu_topic:
+            self.create_subscription(Imu, self.imu_topic, self._on_imu, 10)
+            self.get_logger().info(f'Autonomy: subscribing IMU on {self.imu_topic}')
+        else:
+            self.get_logger().info('Autonomy: IMU disabled (imu_topic empty)')
         self.create_subscription(String, self.qr_text_topic, self._on_qr_text, 5)
 
         # Start async main
@@ -82,6 +108,42 @@ class AutonomyNode(Node):
     def _on_range(self, msg: Range) -> None:
         with self._state_lock:
             self._range_msg = msg
+
+    def _on_depth(self, msg: Image) -> None:
+        if self._cv_bridge is None:
+            return
+        try:
+            # Depth encoding could be 32FC1 or 16UC1; convert to meters
+            cv_img = self._cv_bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+        except Exception:
+            return
+        h, w = cv_img.shape[:2]
+        cx0 = int(w * (0.5 - self.depth_center_fraction * 0.5))
+        cy0 = int(h * (0.5 - self.depth_center_fraction * 0.5))
+        cx1 = int(w * (0.5 + self.depth_center_fraction * 0.5))
+        cy1 = int(h * (0.5 + self.depth_center_fraction * 0.5))
+        roi = cv_img[cy0:cy1, cx0:cx1]
+        # Convert to float meters
+        roi_f = roi.astype('float32')
+        # If 16U assume millimeters
+        if msg.encoding.lower() in ('16uc1', 'mono16'):
+            roi_f = roi_f / 1000.0
+        # Filter invalids
+        finite = roi_f[~(roi_f <= 0.0) & ~(roi_f != roi_f) & ~(roi_f == float('inf'))]
+        if finite.size > 0:
+            center_dist = float(float(finite.mean()))
+        else:
+            center_dist = None
+        with self._state_lock:
+            self._depth_center_dist_m = center_dist
+
+    def _on_imu(self, msg: Imu) -> None:
+        wx = msg.angular_velocity.x
+        wy = msg.angular_velocity.y
+        wz = msg.angular_velocity.z
+        ang = math.sqrt(wx * wx + wy * wy + wz * wz)
+        with self._state_lock:
+            self._imu_angular_speed = float(ang)
 
     async def _run(self) -> None:
         drone = System()
@@ -123,7 +185,9 @@ class AutonomyNode(Node):
 
                 scan = self._get_scan()
                 rng = self._get_range()
-                vx, vy, vz, yaw_deg = self._compute_cmd(scan, rng, yaw_deg)
+                depth_center = self._get_depth_center()
+                imu_ang = self._get_imu_angular_speed()
+                vx, vy, vz, yaw_deg = self._compute_cmd(scan, rng, depth_center, imu_ang, yaw_deg)
                 try:
                     await drone.offboard.set_velocity_ned(VelocityNedYaw(vx, vy, vz, yaw_deg))
                 except OffboardError as exc:  # noqa: F841
@@ -159,17 +223,30 @@ class AutonomyNode(Node):
         with self._state_lock:
             return self._range_msg
 
-    def _compute_cmd(self, scan: Optional[LaserScan], rng: Optional[Range], current_yaw_deg: float) -> Tuple[float, float, float, float]:
+    def _get_depth_center(self) -> Optional[float]:
+        with self._state_lock:
+            return self._depth_center_dist_m
+
+    def _get_imu_angular_speed(self) -> Optional[float]:
+        with self._state_lock:
+            return self._imu_angular_speed
+
+    def _compute_cmd(self, scan: Optional[LaserScan], rng: Optional[Range], depth_center_m: Optional[float], imu_ang_speed: Optional[float], current_yaw_deg: float) -> Tuple[float, float, float, float]:
         # Default: move forward slowly
         vx = self.cruise_speed_m_s
         vy = 0.0
         vz = 0.0
         yaw_deg = current_yaw_deg
 
-        # If we have forward range only (no LiDAR), use simple avoidance
-        if (scan is None or not scan.ranges) and rng is not None:
-            if rng.range == rng.range and rng.range != float('inf') and rng.range < self.wall_distance_min_m:
-                # too close: stop and rotate to search
+        # If we have depth center, treat as forward obstacle distance
+        forward_dist = None
+        if depth_center_m is not None:
+            forward_dist = depth_center_m
+        elif rng is not None and rng.range == rng.range and rng.range != float('inf'):
+            forward_dist = rng.range
+
+        if (scan is None or not scan.ranges) and forward_dist is not None:
+            if forward_dist < min(self.wall_distance_min_m, self.depth_obstacle_distance_m):
                 vx = 0.0
                 yaw_deg = current_yaw_deg + self.max_yaw_rate_deg_s * self.control_period_s
             return vx, vy, vz, yaw_deg
@@ -226,7 +303,11 @@ class AutonomyNode(Node):
         else:
             # No gap; rotate in place to search
             vx = 0.0
-            yaw_deg = current_yaw_deg + self.max_yaw_rate_deg_s * self.control_period_s
+            # Respect IMU angular speed; if already rotating fast, reduce command
+            yaw_step = self.max_yaw_rate_deg_s * self.control_period_s
+            if imu_ang_speed is not None and imu_ang_speed > math.radians(60.0):
+                yaw_step *= 0.5
+            yaw_deg = current_yaw_deg + yaw_step
 
         return vx, vy, vz, yaw_deg
 
