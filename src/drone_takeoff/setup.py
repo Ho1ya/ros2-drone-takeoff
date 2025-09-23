@@ -18,7 +18,6 @@ setup(
     maintainer_email='you@example.com',
     description='ROS2 node to command PX4 takeoff via MAVSDK in Gazebo',
     license='MIT',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'takeoff_node = drone_takeoff.takeoff_node:main',
