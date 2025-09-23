@@ -25,6 +25,7 @@ setup(
             'qr_detector_node = drone_takeoff.qr_detector_node:main',
             'lidar_listener_node = drone_takeoff.lidar_listener_node:main',
             'ultrasonic_listener_node = drone_takeoff.ultrasonic_listener_node:main',
+            'autonomy_node = drone_takeoff.autonomy_node:main',
         ],
     },
 )

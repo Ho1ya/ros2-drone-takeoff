@@ -65,6 +65,22 @@ ros2 topic echo /scan
 ros2 topic echo /ultrasonic
 ```
 
+## Autonomy: explore, avoid walls/doorways, stop on QR, safe land
+The autonomy node uses MAVSDK offboard velocity control and LiDAR gap detection to avoid walls and prefer doorways. It explores until a QR text appears on `/qr_detector/text`, then hovers and performs a safe `action.land()`.
+
+```bash
+ros2 launch drone_takeoff autonomy.launch.py \
+  connection_url:=udp://:14540 \
+  scan_topic:=/scan \
+  qr_text_topic:=/qr_detector/text \
+  takeoff_altitude_m:=3.0 \
+  cruise_speed_m_s:=1.0 \
+  wall_distance_min_m:=1.0 \
+  doorway_min_width_rad:=0.35 \
+  control_rate_hz:=10.0 \
+  max_yaw_rate_deg_s:=45.0
+```
+
 ## Parameters
 - `connection_url` (string): MAVSDK connection URL (default `udp://:14540`).
 - `takeoff_altitude_m` (double): Takeoff altitude meters (default 5.0).
@@ -75,6 +91,7 @@ ros2 topic echo /ultrasonic
 - `show_debug_window` (bool): Show OpenCV window (default `false`).
 - `scan_topic` (string): LiDAR scan topic (default `/scan`).
 - `range_topic` (string): Ultrasonic range topic (default `/ultrasonic`).
+- Autonomy specific: `cruise_speed_m_s`, `wall_distance_min_m`, `doorway_min_width_rad`, `control_rate_hz`, `max_yaw_rate_deg_s`.
 
 ## Notes
 - For ArduPilot SITL, adapt URLs (e.g. `udp://:14550`).
