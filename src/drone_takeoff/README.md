@@ -14,7 +14,7 @@ Minimal ROS2 node to connect to a PX4 SITL drone in Gazebo and command takeoff u
 python -m venv .venv
 . .venv/Scripts/activate  # PowerShell: .venv\Scripts\Activate.ps1
 pip install -U pip
-pip install mavsdk
+pip install -r src/drone_takeoff/requirements.txt
 
 # Build ROS2 package
 colcon build --packages-select drone_takeoff
@@ -37,11 +37,28 @@ make px4_sitl gz_x500
 ros2 launch drone_takeoff takeoff.launch.py takeoff_altitude_m:=5.0 connection_url:=udp://:14540
 ```
 
+## QR detector
+Subscribe to a camera `sensor_msgs/Image` topic and decode QR codes with OpenCV.
+
+```bash
+# Default topics
+ros2 launch drone_takeoff qr_detector.launch.py \
+  image_topic:=/camera/image_raw \
+  publish_text_topic:=/qr_detector/text \
+  show_debug_window:=false
+
+# Echo decoded strings
+ros2 topic echo /qr_detector/text
+```
+
 ## Parameters
 - `connection_url` (string): MAVSDK connection URL (default `udp://:14540`).
 - `takeoff_altitude_m` (double): Takeoff altitude meters (default 5.0).
 - `arm_timeout_s` (double): Timeout for arming (default 10.0).
 - `connect_timeout_s` (double): Timeout for connection (default 20.0).
+- `image_topic` (string): Camera topic for QR detector (default `/camera/image_raw`).
+- `publish_text_topic` (string): Output decoded text topic (default `/qr_detector/text`).
+- `show_debug_window` (bool): Show OpenCV window (default `false`).
 
 ## Notes
 - For ArduPilot SITL, adapt URLs (e.g. `udp://:14550`).
