@@ -1,76 +1,67 @@
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ for f in $(ros2 pkg prefix drone_takeoff)/bin/; do cp -f\"$f\" $(ros2 pkg prefix drone_takeoff)/lib/drone_takeoff/; done
-cp: invalid option -- '"'
-Try 'cp --help' for more information.
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ cp -- help
-cp: missing destination file operand after 'help'
-Try 'cp --help' for more information.
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ cp --help
-Usage: cp [OPTION]... [-T] SOURCE DEST
-  or:  cp [OPTION]... SOURCE... DIRECTORY
-  or:  cp [OPTION]... -t DIRECTORY SOURCE...
-Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
+aerobot72@aerobot72Laptop:~$ cd Firmware2_AP/
+aerobot72@aerobot72Laptop:~/Firmware2_AP$ cd MyNodes/
+aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ source /opt/ros/humble/setup.bash && source ~/Firmware2_AP/MyNodes/install/setup.bash 
+aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ (ros2)
+usage: ros2 [-h] [--use-python-default-buffering]
+            Call `ros2 <command> -h` for more detailed usage. ...
 
-Mandatory arguments to long options are mandatory for short options too.
-  -a, --archive                same as -dR --preserve=all
-      --attributes-only        don't copy the file data, just the attributes
-      --backup[=CONTROL]       make a backup of each existing destination file
-  -b                           like --backup but does not accept an argument
-      --copy-contents          copy contents of special files when recursive
-  -d                           same as --no-dereference --preserve=links
-  -f, --force                  if an existing destination file cannot be
-                                 opened, remove it and try again (this option
-                                 is ignored when the -n option is also used)
-  -i, --interactive            prompt before overwrite (overrides a previous -n
-                                  option)
-  -H                           follow command-line symbolic links in SOURCE
-  -l, --link                   hard link files instead of copying
-  -L, --dereference            always follow symbolic links in SOURCE
-  -n, --no-clobber             do not overwrite an existing file (overrides
-                                 a previous -i option)
-  -P, --no-dereference         never follow symbolic links in SOURCE
-  -p                           same as --preserve=mode,ownership,timestamps
-      --preserve[=ATTR_LIST]   preserve the specified attributes (default:
-                                 mode,ownership,timestamps), if possible
-                                 additional attributes: context, links, xattr,
-                                 all
-      --no-preserve=ATTR_LIST  don't preserve the specified attributes
-      --parents                use full source file name under DIRECTORY
-  -R, -r, --recursive          copy directories recursively
-      --reflink[=WHEN]         control clone/CoW copies. See below
-      --remove-destination     remove each existing destination file before
-                                 attempting to open it (contrast with --force)
-      --sparse=WHEN            control creation of sparse files. See below
-      --strip-trailing-slashes  remove any trailing slashes from each SOURCE
-                                 argument
-  -s, --symbolic-link          make symbolic links instead of copying
-  -S, --suffix=SUFFIX          override the usual backup suffix
-  -t, --target-directory=DIRECTORY  copy all SOURCE arguments into DIRECTORY
-  -T, --no-target-directory    treat DEST as a normal file
-  -u, --update                 copy only when the SOURCE file is newer
-                                 than the destination file or when the
-                                 destination file is missing
-  -v, --verbose                explain what is being done
-  -x, --one-file-system        stay on this file system
-  -Z                           set SELinux security context of destination
-                                 file to default type
-      --context[=CTX]          like -Z, or if CTX is specified then set the
-                                 SELinux or SMACK security context to CTX
-      --help     display this help and exit
-      --version  output version information and exit
+ros2 is an extensible command-line tool for ROS 2.
 
-By default, sparse SOURCE files are detected by a crude heuristic and the
-corresponding DEST file is made sparse as well.  That is the behavior
-selected by --sparse=auto.  Specify --sparse=always to create a sparse DEST
-file whenever the SOURCE file contains a long enough sequence of zero bytes.
-Use --sparse=never to inhibit creation of sparse files.
+options:
+  -h, --help            show this help message and exit
+  --use-python-default-buffering
+                        Do not force line buffering in stdout and instead use
+                        the python default buffering, which might be affected
+                        by PYTHONUNBUFFERED/-u and depends on whatever stdout
+                        is interactive or not
 
-When --reflink[=always] is specified, perform a lightweight copy, where the
-data blocks are copied only when modified.  If this is not possible the copy
-fails, or if --reflink=auto is specified, fall back to a standard copy.
-Use --reflink=never to ensure a standard copy is performed.
+Commands:
+  action     Various action related sub-commands
+  bag        Various rosbag related sub-commands
+  component  Various component related sub-commands
+  daemon     Various daemon related sub-commands
+  doctor     Check ROS setup and other potential issues
+  interface  Show information about ROS interfaces
+  launch     Run a launch file
+  lifecycle  Various lifecycle related sub-commands
+  multicast  Various multicast related sub-commands
+  node       Various node related sub-commands
+  param      Various param related sub-commands
+  pkg        Various package related sub-commands
+  run        Run a package specific executable
+  security   Various security related sub-commands
+  service    Various service related sub-commands
+  topic      Various topic related sub-commands
+  wtf        Use `wtf` as alias to `doctor`
 
-The backup suffix is '~', unless set with --suffix or SIMPLE_BACKUP_SUFFIX.
-The version control method may be selected via the --backup option or through
-the VERSION_CONTROL environment variable.  Here are the values:
-
-  none, off       never make backups (even if --backup is given)
+  Call `ros2 <command> -h` for more detailed usage.
+aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ (ros2 pkg prefix drone_takeoff)/bin/qr_detector_node --ros-args -p image_topic:=/uav1/camera_down -p publish_text_topic:=/qr_detector/text -p show_debug_window:=false
+bash: syntax error near unexpected token `/bin/qr_detector_node'
+aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ ros2 topic echo /qr_detector?text
+Traceback (most recent call last):
+  File "/opt/ros/humble/bin/ros2", line 33, in <module>
+    sys.exit(load_entry_point('ros2cli==0.18.13', 'console_scripts', 'ros2')())
+  File "/opt/ros/humble/lib/python3.10/site-packages/ros2cli/cli.py", line 91, in main
+    rc = extension.main(parser=parser, args=args)
+  File "/opt/ros/humble/lib/python3.10/site-packages/ros2topic/command/topic.py", line 41, in main
+    return extension.main(args=args)
+  File "/opt/ros/humble/lib/python3.10/site-packages/ros2topic/verb/echo.py", line 220, in main
+    qos_profile = self.choose_qos(node, args)
+  File "/opt/ros/humble/lib/python3.10/site-packages/ros2topic/verb/echo.py", line 146, in choose_qos
+    pubs_info = node.get_publishers_info_by_topic(args.topic_name)
+  File "/usr/lib/python3.10/xmlrpc/client.py", line 1122, in __call__
+    return self.__send(self.__name, args)
+  File "/usr/lib/python3.10/xmlrpc/client.py", line 1464, in __request
+    response = self.__transport.request(
+  File "/usr/lib/python3.10/xmlrpc/client.py", line 1166, in request
+    return self.single_request(host, handler, request_body, verbose)
+  File "/usr/lib/python3.10/xmlrpc/client.py", line 1182, in single_request
+    return self.parse_response(resp)
+  File "/usr/lib/python3.10/xmlrpc/client.py", line 1354, in parse_response
+    return u.close()
+  File "/usr/lib/python3.10/xmlrpc/client.py", line 668, in close
+    raise Fault(**self._stack[0])
+xmlrpc.client.Fault: <Fault 1: "<class 'ValueError'>:topic name '/qr_detector?text' is invalid: topic name is invalid, at ./src/rcl/expand_topic_name.c:73">
+aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ (ros2 pkg prefix drone_takeoff)/bin/takeoff_node --ros-args -p connection_url:=udp://:14550 -p takeoff_altitude_m:=3.0
+bash: syntax error near unexpected token `/bin/takeoff_node'
+aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ 
