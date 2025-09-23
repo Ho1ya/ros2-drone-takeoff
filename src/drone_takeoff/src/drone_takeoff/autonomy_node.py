@@ -167,12 +167,9 @@ class AutonomyNode(Node):
             await asyncio.sleep(6.0)
 
             # Start offboard control in NED frame with yaw heading
-            try:
-                await drone.offboard.start(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
-            except OffboardError:
-                # Need to set an initial setpoint before start on some firmwares
-                await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
-                await drone.offboard.start()
+            # Most firmwares require sending a setpoint before starting offboard
+            await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
+            await drone.offboard.start()
 
             self.get_logger().info('Offboard started. Exploring until QR detected...')
 

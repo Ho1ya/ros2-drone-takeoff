@@ -12,7 +12,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', ['launch/takeoff.launch.py']),
     ],
-    install_requires=['setuptools', 'rclpy', 'mavsdk', 'opencv-python', 'numpy', 'cv_bridge'],
+    install_requires=['setuptools', 'mavsdk', 'opencv-python', 'numpy'],
     zip_safe=True,
     maintainer='You',
     maintainer_email='you@example.com',
