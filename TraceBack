@@ -1,10 +1,4 @@
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ ls &(ros2 pkg prefix drone_takeoff)/share/drone_takeoff/launch
-bash: syntax error near unexpected token `/share/drone_takeoff/launch'
 aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ ros2 launch drone_takeoff qr_detector.launch.py image_topic:=/uav1/camera_down publish_text_topic:=/qr_detector/text show_debug_window:=false
-Package 'drone_takeoff' not found: "package 'drone_takeoff' not found, searching: ['/opt/ros/humble']"
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ . install/setup.bash 
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ ls &(ros2 pkg prefix drone_takeoff)/share/drone_takeoff/launch
-bash: syntax error near unexpected token `/share/drone_takeoff/launch'
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ ros2 launch drone_takeoff qr_detector.launch.py image_topic:=/uav1/camera_down publish_text_topic:=/qr_detector/text show_debug_window:=false
-file 'qr_detector.launch.py' was not found in the share directory of package 'drone_takeoff' which is at '/home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/share/drone_takeoff'
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ 
+[INFO] [launch]: All log files can be found below /home/aerobot72/.ros/log/2025-09-23-15-28-04-724726-aerobot72Laptop-8411
+[INFO] [launch]: Default logging verbosity is set to INFO
+[ERROR] [launch]: Caught exception in launch (see debug for traceback): package 'drone_takeoff' found at '/home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff', but libexec directory '/home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/lib/drone_takeoff' does not exist
