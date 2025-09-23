@@ -6,7 +6,8 @@ from launch_ros.actions import Node
 
 def generate_launch_description() -> LaunchDescription:
     connection_url = LaunchConfiguration('connection_url', default='udp://:14540')
-    scan_topic = LaunchConfiguration('scan_topic', default='/scan')
+    scan_topic = LaunchConfiguration('scan_topic', default='')
+    range_topic = LaunchConfiguration('range_topic', default='')
     qr_text_topic = LaunchConfiguration('qr_text_topic', default='/qr_detector/text')
     takeoff_altitude_m = LaunchConfiguration('takeoff_altitude_m', default='3.0')
     cruise_speed_m_s = LaunchConfiguration('cruise_speed_m_s', default='1.0')
@@ -17,7 +18,8 @@ def generate_launch_description() -> LaunchDescription:
 
     return LaunchDescription([
         DeclareLaunchArgument('connection_url', default_value='udp://:14540'),
-        DeclareLaunchArgument('scan_topic', default_value='/scan'),
+        DeclareLaunchArgument('scan_topic', default_value=''),
+        DeclareLaunchArgument('range_topic', default_value=''),
         DeclareLaunchArgument('qr_text_topic', default_value='/qr_detector/text'),
         DeclareLaunchArgument('takeoff_altitude_m', default_value='3.0'),
         DeclareLaunchArgument('cruise_speed_m_s', default_value='1.0'),
@@ -34,6 +36,7 @@ def generate_launch_description() -> LaunchDescription:
                 'connection_url': connection_url,
                 'scan_topic': scan_topic,
                 'qr_text_topic': qr_text_topic,
+                'range_topic': range_topic,
                 'takeoff_altitude_m': takeoff_altitude_m,
                 'cruise_speed_m_s': cruise_speed_m_s,
                 'wall_distance_min_m': wall_distance_min_m,

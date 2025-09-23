@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
-from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import LaserScan, Range
 from std_msgs.msg import String
 
 from mavsdk import System
@@ -26,7 +26,8 @@ class AutonomyNode(Node):
 
         # Parameters
         self.declare_parameter('connection_url', 'udp://:14540')
-        self.declare_parameter('scan_topic', '/scan')
+        self.declare_parameter('scan_topic', '')
+        self.declare_parameter('range_topic', '')
         self.declare_parameter('qr_text_topic', '/qr_detector/text')
         self.declare_parameter('takeoff_altitude_m', 3.0)
         self.declare_parameter('cruise_speed_m_s', 1.0)
@@ -37,6 +38,7 @@ class AutonomyNode(Node):
 
         self.connection_url: str = self.get_parameter('connection_url').get_parameter_value().string_value
         self.scan_topic: str = self.get_parameter('scan_topic').get_parameter_value().string_value
+        self.range_topic: str = self.get_parameter('range_topic').get_parameter_value().string_value
         self.qr_text_topic: str = self.get_parameter('qr_text_topic').get_parameter_value().string_value
         self.takeoff_altitude_m: float = float(self.get_parameter('takeoff_altitude_m').value)
         self.cruise_speed_m_s: float = float(self.get_parameter('cruise_speed_m_s').value)
@@ -47,12 +49,23 @@ class AutonomyNode(Node):
 
         # State
         self._scan_msg: Optional[LaserScan] = None
+        self._range_msg: Optional[Range] = None
         self._qr_text: Optional[str] = None
         self._state_lock = threading.Lock()
         self._running = True
 
         # Subscriptions
-        self.create_subscription(LaserScan, self.scan_topic, self._on_scan, 5)
+        if self.scan_topic:
+            self.create_subscription(LaserScan, self.scan_topic, self._on_scan, 5)
+            self.get_logger().info(f'Autonomy: subscribing LaserScan on {self.scan_topic}')
+        else:
+            self.get_logger().info('Autonomy: LaserScan disabled (scan_topic empty)')
+
+        if self.range_topic:
+            self.create_subscription(Range, self.range_topic, self._on_range, 5)
+            self.get_logger().info(f'Autonomy: subscribing Range on {self.range_topic}')
+        else:
+            self.get_logger().info('Autonomy: Range disabled (range_topic empty)')
         self.create_subscription(String, self.qr_text_topic, self._on_qr_text, 5)
 
         # Start async main
@@ -65,6 +78,10 @@ class AutonomyNode(Node):
     def _on_qr_text(self, msg: String) -> None:
         with self._state_lock:
             self._qr_text = msg.data.strip() if msg.data else ''
+
+    def _on_range(self, msg: Range) -> None:
+        with self._state_lock:
+            self._range_msg = msg
 
     async def _run(self) -> None:
         drone = System()
@@ -105,7 +122,8 @@ class AutonomyNode(Node):
                     break
 
                 scan = self._get_scan()
-                vx, vy, vz, yaw_deg = self._compute_cmd_from_scan(scan, yaw_deg)
+                rng = self._get_range()
+                vx, vy, vz, yaw_deg = self._compute_cmd(scan, rng, yaw_deg)
                 try:
                     await drone.offboard.set_velocity_ned(VelocityNedYaw(vx, vy, vz, yaw_deg))
                 except OffboardError as exc:  # noqa: F841
@@ -137,14 +155,29 @@ class AutonomyNode(Node):
         with self._state_lock:
             return self._qr_text
 
-    def _compute_cmd_from_scan(self, scan: Optional[LaserScan], current_yaw_deg: float) -> Tuple[float, float, float, float]:
+    def _get_range(self) -> Optional[Range]:
+        with self._state_lock:
+            return self._range_msg
+
+    def _compute_cmd(self, scan: Optional[LaserScan], rng: Optional[Range], current_yaw_deg: float) -> Tuple[float, float, float, float]:
         # Default: move forward slowly
         vx = self.cruise_speed_m_s
         vy = 0.0
         vz = 0.0
         yaw_deg = current_yaw_deg
 
+        # If we have forward range only (no LiDAR), use simple avoidance
+        if (scan is None or not scan.ranges) and rng is not None:
+            if rng.range == rng.range and rng.range != float('inf') and rng.range < self.wall_distance_min_m:
+                # too close: stop and rotate to search
+                vx = 0.0
+                yaw_deg = current_yaw_deg + self.max_yaw_rate_deg_s * self.control_period_s
+            return vx, vy, vz, yaw_deg
+
         if scan is None or not scan.ranges:
+            # no sensors: slowly rotate and crawl
+            yaw_deg = current_yaw_deg + 0.5 * self.max_yaw_rate_deg_s * self.control_period_s
+            vx = 0.5 * self.cruise_speed_m_s
             return vx, vy, vz, yaw_deg
 
         # Convert scan to polar sectors; find widest gap with distances > wall_distance_min

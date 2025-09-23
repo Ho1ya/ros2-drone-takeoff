@@ -41,11 +41,11 @@ class QrDetectorNode(Node):
         # Detect and decode
         data, points, _ = self.qr.detectAndDecode(frame)
 
-        if points is not None:
-            pts = points[0].astype(int)
-            for i in range(4):
+        if points is not None and len(points) > 0:
+            pts = points.reshape(-1, 2).astype(int)
+            for i in range(len(pts)):
                 pt1 = tuple(pts[i])
-                pt2 = tuple(pts[(i + 1) % 4])
+                pt2 = tuple(pts[(i + 1) % len(pts)])
                 cv2.line(frame, pt1, pt2, (0, 255, 0), 2)
 
         if data:
