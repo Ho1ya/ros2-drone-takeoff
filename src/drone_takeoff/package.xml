@@ -2,7 +2,7 @@
 <package format="3">
   <name>drone_takeoff</name>
   <version>0.1.0</version>
-  <description>ROS2 node to connect to PX4 SITL in Gazebo and command takeoff via MAVSDK.</description>
+  <description>ROS 2 Python package for takeoff, QR detection and sensors.</description>
   <maintainer email="you@example.com">You</maintainer>
   <license>MIT</license>
 
@@ -11,10 +11,12 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>cv_bridge</exec_depend>
 
   <test_depend>pytest</test_depend>
+
   <export>
     <build_type>ament_python</build_type>
   </export>
