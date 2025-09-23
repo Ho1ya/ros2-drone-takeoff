@@ -12,14 +12,20 @@ Minimal ROS2 node to connect to a PX4 SITL drone in Gazebo and command takeoff u
 ```bash
 # In workspace root
 python -m venv .venv
-. .venv/Scripts/activate  # PowerShell: .venv\Scripts\Activate.ps1
+# Windows PowerShell:
+. .venv/Scripts/Activate.ps1
+# Linux/macOS:
+source .venv/bin/activate
 pip install -U pip
 pip install -r src/drone_takeoff/requirements.txt
 
 # Build ROS2 package
 colcon build --packages-select drone_takeoff
-# Source workspace (PowerShell on Windows):
-install\setup.ps1
+# Source workspace
+# Windows PowerShell:
+./install/setup.ps1
+# Linux/macOS:
+. install/setup.bash
 ```
 
 ## Run PX4 + Gazebo (example)

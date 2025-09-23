@@ -15,5 +15,8 @@
   <exec_depend>cv_bridge</exec_depend>
 
   <test_depend>pytest</test_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
 </package>
 
