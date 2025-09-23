@@ -1,35 +1,59 @@
-erobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ ls $(ros2 pkg prefix drone_takeoff)/lib/drone_takeoff
-ls: cannot access '/home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/lib/drone_takeoff': No such file or directory
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ ls
-build  install  log  ros2-drone-takeoff
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ cd ros2-drone-takeoff/
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff$ ls
-src  TraceBack
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff$ cd 
-.git/ src/  
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff$ cd src/
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src$ ls
-drone_takeoff
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src$ cd drone_takeoff/
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff$ ls
-launch   package.xml  requirements.txt  setup.cfg  src
-LICENSE  README.md    resource          setup.py
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff$ cd launch/
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff/launch$ ls
-autonomy.launch.py     range_sensors.launch.py
-qr_detector.launch.py  takeoff.launch.py
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff/launch$ cd ..
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff$ cd src/
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff/src$ ls
-drone_takeoff
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff/src$ cd drone_takeoff/
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff/src/drone_takeoff$ ls
-autonomy_node.py  lidar_listener_node.py  takeoff_node.py
-__init__.py       qr_detector_node.py     ultrasonic_listener_node.py
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff/src/drone_takeoff$  cd..
-cd..: command not found
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff/src/drone_takeoff$ cd ..
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff/src$ cd ..
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff$ cd resource/
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes/ros2-drone-takeoff/src/drone_takeoff/resource$ ls
-drone_takeoff
+aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ colcon build --packages-select drone_takeoff --symlink-install --event-handlers console_direct+
+Starting >>> drone_takeoff
+/home/aerobot72/.local/lib/python3.10/site-packages/setuptools/dist.py:484: SetuptoolsDeprecationWarning: Cannot find any files for the given pattern.
+!!
+
+        ********************************************************************************
+        Pattern 'LICENSE' did not match any files.
+
+        By 2026-Mar-20, you need to update your project and remove deprecated calls
+        or your builds will no longer be supported.
+        ********************************************************************************
+
+!!
+  for path in sorted(cls._find_pattern(pattern, enforce_match))
+running develop                             
+running egg_info                            
+creating src/drone_takeoff.egg-info
+writing src/drone_takeoff.egg-info/PKG-INFO
+writing dependency_links to src/drone_takeoff.egg-info/dependency_links.txt
+writing entry points to src/drone_takeoff.egg-info/entry_points.txt
+writing requirements to src/drone_takeoff.egg-info/requires.txt
+writing top-level names to src/drone_takeoff.egg-info/top_level.txt
+writing manifest file 'src/drone_takeoff.egg-info/SOURCES.txt'
+reading manifest file 'src/drone_takeoff.egg-info/SOURCES.txt'
+writing manifest file 'src/drone_takeoff.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/lib/python3.10/site-packages/drone-takeoff.egg-link (link to src)
+Installing autonomy_node script to /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/bin
+Installing lidar_listener_node script to /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/bin
+Installing qr_detector_node script to /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/bin
+Installing takeoff_node script to /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/bin
+Installing ultrasonic_listener_node script to /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/bin
+
+Installed /home/aerobot72/Firmware2_AP/MyNodes/build/drone_takeoff/src
+running symlink_data
+symbolically linking /home/aerobot72/Firmware2_AP/MyNodes/build/drone_takeoff/resource/drone_takeoff -> /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/share/ament_index/resource_index/packages
+symbolically linking /home/aerobot72/Firmware2_AP/MyNodes/build/drone_takeoff/package.xml -> /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/share/drone_takeoff
+symbolically linking /home/aerobot72/Firmware2_AP/MyNodes/build/drone_takeoff/launch/takeoff.launch.py -> /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/share/drone_takeoff/launch
+symbolically linking /home/aerobot72/Firmware2_AP/MyNodes/build/drone_takeoff/launch/qr_detector.launch.py -> /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/share/drone_takeoff/launch
+symbolically linking /home/aerobot72/Firmware2_AP/MyNodes/build/drone_takeoff/launch/autonomy.launch.py -> /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/share/drone_takeoff/launch
+symbolically linking /home/aerobot72/Firmware2_AP/MyNodes/build/drone_takeoff/launch/range_sensors.launch.py -> /home/aerobot72/Firmware2_AP/MyNodes/install/drone_takeoff/share/drone_takeoff/launch
+--- stderr: drone_takeoff
+/home/aerobot72/.local/lib/python3.10/site-packages/setuptools/dist.py:484: SetuptoolsDeprecationWarning: Cannot find any files for the given pattern.
+!!
+
+        ********************************************************************************
+        Pattern 'LICENSE' did not match any files.
+
+        By 2026-Mar-20, you need to update your project and remove deprecated calls
+        or your builds will no longer be supported.
+        ********************************************************************************
+
+!!
+  for path in sorted(cls._find_pattern(pattern, enforce_match))
+---
+Finished <<< drone_takeoff [1.10s]
+
+Summary: 1 package finished [1.21s]
+  1 package had stderr output: drone_takeoff
