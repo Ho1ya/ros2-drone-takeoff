@@ -1,3 +1,4 @@
+aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ for f in $(ros2 pkg prefix drone_takeoff)/bin/; do ln -sf"$f" $(ros2 pkg prefix drone_takeoff)/lib/drone_takeoff/; done
 ln: invalid option -- '/'
 Try 'ln --help' for more information.
 aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ ros2 launch drone_takeoff qr_detector.launch.py image_topic:=/uav1/camera_down publish_text_topic:=/qr_detector/text show_debug_window:=false
