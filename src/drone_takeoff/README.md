@@ -41,9 +41,9 @@ ros2 launch drone_takeoff takeoff.launch.py takeoff_altitude_m:=5.0 connection_u
 Subscribe to a camera `sensor_msgs/Image` topic and decode QR codes with OpenCV.
 
 ```bash
-# Default topics
+# Defaults use bottom camera topic
 ros2 launch drone_takeoff qr_detector.launch.py \
-  image_topic:=/camera/image_raw \
+  image_topic:=uav1/camera_down \
   publish_text_topic:=/qr_detector/text \
   show_debug_window:=false
 
@@ -56,7 +56,7 @@ ros2 topic echo /qr_detector/text
 - `takeoff_altitude_m` (double): Takeoff altitude meters (default 5.0).
 - `arm_timeout_s` (double): Timeout for arming (default 10.0).
 - `connect_timeout_s` (double): Timeout for connection (default 20.0).
-- `image_topic` (string): Camera topic for QR detector (default `/camera/image_raw`).
+- `image_topic` (string): Camera topic for QR detector (default `uav1/camera_down`).
 - `publish_text_topic` (string): Output decoded text topic (default `/qr_detector/text`).
 - `show_debug_window` (bool): Show OpenCV window (default `false`).
 

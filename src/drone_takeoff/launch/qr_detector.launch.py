@@ -5,12 +5,12 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description() -> LaunchDescription:
-    image_topic = LaunchConfiguration('image_topic', default='/camera/image_raw')
+    image_topic = LaunchConfiguration('image_topic', default='uav1/camera_down')
     publish_text_topic = LaunchConfiguration('publish_text_topic', default='/qr_detector/text')
     show_debug_window = LaunchConfiguration('show_debug_window', default='false')
 
     return LaunchDescription([
-        DeclareLaunchArgument('image_topic', default_value='/camera/image_raw'),
+        DeclareLaunchArgument('image_topic', default_value='uav1/camera_down'),
         DeclareLaunchArgument('publish_text_topic', default_value='/qr_detector/text'),
         DeclareLaunchArgument('show_debug_window', default_value='false'),
         Node(
