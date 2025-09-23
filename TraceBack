@@ -1,0 +1,13 @@
+Starting >>> drone_takeoff
+/home/aerobot72/.local/lib/python3.10/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+  warnings.warn(msg)
+--- stderr: drone_takeoff                   
+/home/aerobot72/.local/lib/python3.10/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+  warnings.warn(msg)
+---
+Finished <<< drone_takeoff [0.94s]
+
+Summary: 1 package finished [1.05s]
+  1 package had stderr output: drone_takeoff
+bash: ./install/setup.ps1: Permission denied
+aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ 
