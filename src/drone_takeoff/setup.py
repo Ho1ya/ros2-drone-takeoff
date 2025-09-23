@@ -10,7 +10,12 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/takeoff.launch.py']),
+        ('share/' + package_name + '/launch', [
+            'launch/takeoff.launch.py',
+            'launch/qr_detector.launch.py',
+            'launch/autonomy.launch.py',
+            'launch/range_sensors.launch.py',
+        ]),
     ],
     install_requires=['setuptools', 'mavsdk', 'opencv-python', 'numpy'],
     zip_safe=True,
