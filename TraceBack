@@ -1,44 +1,7 @@
-hhorus@Simulator:~/Firmware2_AP/ros2-drone-takeoff$ ros2 launch drone_takeoff ros_gz_bridges.launch.py   ros_scan:=/scan   ros_image:=/camera/image_raw   ros_depth:=/camera/depth/image_raw   ros_imu:=/imu   gz_scan:=/scan   gz_image:=/camera   gz_depth:=/depth   gz_imu:=/imu
-[INFO] [launch]: All log files can be found below /home/hhorus/.ros/log/2025-09-24-15-24-25-619633-Simulator-2577
+hhorus@Simulator:~/Firmware2_AP/ros2-drone-takeoff$ ros2 launch drone_takeoff qr_detector.launch.py \
+  image_topic:=/uav1/camera_down \
+  publish_text_topic:=/qr_detector/text \
+  show_debug_window:=false
+[INFO] [launch]: All log files can be found below /home/hhorus/.ros/log/2025-09-24-15-43-15-956099-Simulator-3644
 [INFO] [launch]: Default logging verbosity is set to INFO
-[INFO] [parameter_bridge-1]: process started with pid [2578]
-[parameter_bridge-1] [WARN] [1758716665.679712061] [rcl]: Found remap rule '/scan:=/scan'. This syntax is deprecated. Use '--ros-args --remap /scan:=/scan' instead.
-[parameter_bridge-1] [WARN] [1758716665.680290336] [rcl]: Found remap rule '/camera:=/camera/image_raw'. This syntax is deprecated. Use '--ros-args --remap /camera:=/camera/image_raw' instead.
-[parameter_bridge-1] [WARN] [1758716665.680300346] [rcl]: Found remap rule '/depth:=/camera/depth/image_raw'. This syntax is deprecated. Use '--ros-args --remap /depth:=/camera/depth/image_raw' instead.
-[parameter_bridge-1] [WARN] [1758716665.680304416] [rcl]: Found remap rule '/imu:=/imu'. This syntax is deprecated. Use '--ros-args --remap /imu:=/imu' instead.
-[parameter_bridge-1] [INFO] [1758716665.716249162] [ros_gz_parameter_bridge]: Creating GZ->ROS Bridge: [/scan (gz.msgs.LaserScan) -> /scan (sensor_msgs/msg/LaserScan)] (Lazy 0)
-[parameter_bridge-1] [INFO] [1758716665.721239762] [ros_gz_parameter_bridge]: Creating ROS->GZ Bridge: [/scan (sensor_msgs/msg/LaserScan) -> /scan (gz.msgs.LaserScan)] (Lazy 0)
-[parameter_bridge-1] Bridge a collection of ROS2 and Gazebo Transport topics and services.
-[parameter_bridge-1] 
-[parameter_bridge-1]   parameter_bridge [<topic@ROS2_type@Ign_type> ..]  [<service@ROS2_srv_type[@Ign_req_type@Ign_rep_type]> ..]
-[parameter_bridge-1] 
-[parameter_bridge-1] Topics: The first @ symbol delimits the topic name from the message types.
-[parameter_bridge-1] Following the first @ symbol is the ROS message type.
-[parameter_bridge-1] The ROS message type is followed by an @, [, or ] symbol where
-[parameter_bridge-1]     @  == a bidirectional bridge, 
-[parameter_bridge-1]     [  == a bridge from Gazebo to ROS,
-[parameter_bridge-1]     ]  == a bridge from ROS to Gazebo.
-[parameter_bridge-1] Following the direction symbol is the Gazebo Transport message type.
-[parameter_bridge-1] 
-[parameter_bridge-1] Services: The first @ symbol delimits the service name from the types.
-[parameter_bridge-1] Following the first @ symbol is the ROS service type.
-[parameter_bridge-1] Optionally, you can include the Gazebo request and response type
-[parameter_bridge-1] separated by the @ symbol.
-[parameter_bridge-1] It is only supported to expose Gazebo servces as ROS services, i.e.
-[parameter_bridge-1] the ROS service will forward request to the Gazebo service and then forward
-[parameter_bridge-1] the response back to the ROS client.
-[parameter_bridge-1] 
-[parameter_bridge-1] A bidirectional bridge example:
-[parameter_bridge-1]     parameter_bridge /chatter@std_msgs/String@ignition.msgs.StringMsg
-[parameter_bridge-1] 
-[parameter_bridge-1] A bridge from Gazebo to ROS example:
-[parameter_bridge-1]     parameter_bridge /chatter@std_msgs/String[ignition.msgs.StringMsg
-[parameter_bridge-1] 
-[parameter_bridge-1] A bridge from ROS to Gazebo example:
-[parameter_bridge-1]     parameter_bridge /chatter@std_msgs/String]ignition.msgs.StringMsg
-[parameter_bridge-1] A service bridge:
-[parameter_bridge-1]     parameter_bridge /world/default/control@ros_gz_interfaces/srv/ControlWorld
-[parameter_bridge-1] Or equivalently:
-[parameter_bridge-1]     parameter_bridge /world/default/control@ros_gz_interfaces/srv/ControlWorld@ignition.msgs.WorldControl@ignition.msgs.Boolean
-[parameter_bridge-1] 
-[ERROR] [parameter_bridge-1]: process has died [pid 2578, exit code 255, cmd '/opt/ros/humble/lib/ros_gz_bridge/parameter_bridge /scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan -r /scan:=/scan /camera@sensor_msgs/msg/Image@gz.msgs.Image -r /camera:=/camera/image_raw /depth@sensor_msgs/msg/Image@gz.msgs.Image -r /depth:=/camera/depth/image_raw /imu@sensor_msgs/msg/Imu@gz.msgs.IMU -r /imu:=/imu --ros-args -r __node:=ros_gz_parameter_bridge'].
+[ERROR] [launch]: Caught exception in launch (see debug for traceback): package 'drone_takeoff' found at '/home/hhorus/Firmware2_AP/ros2-drone-takeoff/install/drone_takeoff', but libexec directory '/home/hhorus/Firmware2_AP/ros2-drone-takeoff/install/drone_takeoff/lib/drone_takeoff' does not exist
