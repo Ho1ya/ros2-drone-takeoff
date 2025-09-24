@@ -21,7 +21,7 @@ def generate_launch_description() -> LaunchDescription:
     imu_topic = LaunchConfiguration('imu_topic', default='')
 
     return LaunchDescription([
-        DeclareLaunchArgument('connection_url', default_value='udp://:14540'),
+        DeclareLaunchArgument('connection_url', default_value='udp://:14550'),
         DeclareLaunchArgument('scan_topic', default_value='/scan'),
         DeclareLaunchArgument('range_topic', default_value=''),
         DeclareLaunchArgument('qr_text_topic', default_value='/qr_detector/text'),
