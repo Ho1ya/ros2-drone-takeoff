@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan, Range, Image, Imu
 from cv_bridge import CvBridge
 from std_msgs.msg import String
@@ -31,6 +32,8 @@ class AutonomyNode(Node):
         self.declare_parameter('range_topic', '')
         self.declare_parameter('qr_text_topic', '/qr_detector/text')
         self.declare_parameter('takeoff_altitude_m', 3.0)
+        self.declare_parameter('connect_timeout_s', 20.0)
+        self.declare_parameter('global_pos_timeout_s', 30.0)
         self.declare_parameter('cruise_speed_m_s', 1.0)
         self.declare_parameter('wall_distance_min_m', 1.0)
         self.declare_parameter('doorway_min_width_rad', 0.35)
@@ -47,6 +50,8 @@ class AutonomyNode(Node):
         self.range_topic: str = self.get_parameter('range_topic').get_parameter_value().string_value
         self.qr_text_topic: str = self.get_parameter('qr_text_topic').get_parameter_value().string_value
         self.takeoff_altitude_m: float = float(self.get_parameter('takeoff_altitude_m').value)
+        self.connect_timeout_s: float = float(self.get_parameter('connect_timeout_s').value)
+        self.global_pos_timeout_s: float = float(self.get_parameter('global_pos_timeout_s').value)
         self.cruise_speed_m_s: float = float(self.get_parameter('cruise_speed_m_s').value)
         self.wall_distance_min_m: float = float(self.get_parameter('wall_distance_min_m').value)
         self.doorway_min_width_rad: float = float(self.get_parameter('doorway_min_width_rad').value)
@@ -66,29 +71,30 @@ class AutonomyNode(Node):
         self._qr_text: Optional[str] = None
         self._state_lock = threading.Lock()
         self._running = True
+        self._retry_sleep_s = 1.0
 
         # Subscriptions
         if self.scan_topic:
-            self.create_subscription(LaserScan, self.scan_topic, self._on_scan, 5)
+            self.create_subscription(LaserScan, self.scan_topic, self._on_scan, qos_profile_sensor_data)
             self.get_logger().info(f'Autonomy: subscribing LaserScan on {self.scan_topic}')
         else:
             self.get_logger().info('Autonomy: LaserScan disabled (scan_topic empty)')
 
         if self.range_topic:
-            self.create_subscription(Range, self.range_topic, self._on_range, 5)
+            self.create_subscription(Range, self.range_topic, self._on_range, qos_profile_sensor_data)
             self.get_logger().info(f'Autonomy: subscribing Range on {self.range_topic}')
         else:
             self.get_logger().info('Autonomy: Range disabled (range_topic empty)')
 
         if self.depth_topic:
             self._cv_bridge = CvBridge()
-            self.create_subscription(Image, self.depth_topic, self._on_depth, 5)
+            self.create_subscription(Image, self.depth_topic, self._on_depth, qos_profile_sensor_data)
             self.get_logger().info(f'Autonomy: subscribing Depth image on {self.depth_topic}')
         else:
             self.get_logger().info('Autonomy: Depth disabled (depth_topic empty)')
 
         if self.imu_topic:
-            self.create_subscription(Imu, self.imu_topic, self._on_imu, 10)
+            self.create_subscription(Imu, self.imu_topic, self._on_imu, qos_profile_sensor_data)
             self.get_logger().info(f'Autonomy: subscribing IMU on {self.imu_topic}')
         else:
             self.get_logger().info('Autonomy: IMU disabled (imu_topic empty)')
@@ -148,28 +154,32 @@ class AutonomyNode(Node):
     async def _run(self) -> None:
         drone = System()
         try:
-            await drone.connect(system_address=self.connection_url)
+            # Robust connect with retries until connect_timeout_s expires
+            await self._connect_with_retries(drone)
 
             self.get_logger().info('Waiting for connection...')
-            async for state in drone.core.connection_state():
-                if state.is_connected:
-                    break
+            try:
+                await asyncio.wait_for(self._wait_connected(drone), timeout=self.connect_timeout_s)
+            except asyncio.TimeoutError:
+                self.get_logger().error('Timeout waiting for vehicle connection')
+                return
 
             self.get_logger().info('Waiting for global position...')
-            async for h in drone.telemetry.health():
-                if h.is_global_position_ok and h.is_home_position_ok:
-                    break
+            try:
+                await asyncio.wait_for(self._wait_global_position(drone), timeout=self.global_pos_timeout_s)
+            except asyncio.TimeoutError:
+                self.get_logger().error('Timeout waiting for global position and home position')
+                return
 
             await drone.action.set_takeoff_altitude(self.takeoff_altitude_m)
-            await drone.action.arm()
-            await drone.action.takeoff()
+            await self._arm_with_retry(drone)
+            await self._takeoff_with_retry(drone)
             self.get_logger().info('Takeoff commanded; waiting to reach altitude...')
             await asyncio.sleep(6.0)
 
             # Start offboard control in NED frame with yaw heading
-            # Most firmwares require sending a setpoint before starting offboard
-            await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
-            await drone.offboard.start()
+            # Send multiple setpoints before start for safety
+            await self._start_offboard_with_retries(drone)
 
             self.get_logger().info('Offboard started. Exploring until QR detected...')
 
@@ -198,7 +208,7 @@ class AutonomyNode(Node):
                 await asyncio.sleep(0.5)
                 await drone.offboard.stop()
             except OffboardError:
-                pass
+                self.get_logger().warn('Offboard stop failed; proceeding to land')
 
             await self._safe_land(drone)
             self.get_logger().info('Landed. Disarming...')
@@ -206,6 +216,11 @@ class AutonomyNode(Node):
         except Exception as exc:  # noqa: BLE001
             self.get_logger().error(f'Autonomy error: {exc}')
         finally:
+            try:
+                self._running = False
+                self.get_logger().info('Shutting down autonomy node...')
+            except Exception:
+                pass
             rclpy.shutdown()
 
     def _get_scan(self) -> Optional[LaserScan]:
@@ -227,6 +242,16 @@ class AutonomyNode(Node):
     def _get_imu_angular_speed(self) -> Optional[float]:
         with self._state_lock:
             return self._imu_angular_speed
+
+    async def _wait_connected(self, drone: System) -> None:
+        async for state in drone.core.connection_state():
+            if state.is_connected:
+                return
+
+    async def _wait_global_position(self, drone: System) -> None:
+        async for h in drone.telemetry.health():
+            if h.is_global_position_ok and h.is_home_position_ok:
+                return
 
     def _compute_cmd(self, scan: Optional[LaserScan], rng: Optional[Range], depth_center_m: Optional[float], imu_ang_speed: Optional[float], current_yaw_deg: float) -> Tuple[float, float, float, float]:
         # Default: move forward slowly
@@ -314,6 +339,55 @@ class AutonomyNode(Node):
         except Exception:
             self.get_logger().warn('Land action failed, attempting disarm later')
         await asyncio.sleep(8.0)
+
+    async def _connect_with_retries(self, drone: System) -> None:
+        deadline = asyncio.get_event_loop().time() + self.connect_timeout_s
+        while True:
+            try:
+                await drone.connect(system_address=self.connection_url)
+                # Wait is_connected stream
+                await asyncio.wait_for(self._wait_connected(drone), timeout=max(1.0, self._retry_sleep_s * 5))
+                return
+            except Exception as exc:
+                if asyncio.get_event_loop().time() >= deadline:
+                    raise exc
+                await asyncio.sleep(self._retry_sleep_s)
+
+    async def _arm_with_retry(self, drone: System) -> None:
+        for _ in range(5):
+            try:
+                await drone.action.arm()
+                return
+            except Exception:
+                await asyncio.sleep(self._retry_sleep_s)
+        # last attempt raises
+        await drone.action.arm()
+
+    async def _takeoff_with_retry(self, drone: System) -> None:
+        for _ in range(3):
+            try:
+                await drone.action.takeoff()
+                return
+            except Exception:
+                await asyncio.sleep(self._retry_sleep_s)
+        await drone.action.takeoff()
+
+    async def _start_offboard_with_retries(self, drone: System) -> None:
+        # Send a few neutral setpoints
+        for _ in range(5):
+            try:
+                await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
+                await asyncio.sleep(0.05)
+            except OffboardError:
+                await asyncio.sleep(0.05)
+        # Try to start offboard with retries
+        for _ in range(5):
+            try:
+                await drone.offboard.start()
+                return
+            except OffboardError:
+                await asyncio.sleep(self._retry_sleep_s)
+        await drone.offboard.start()
 
 
 def main() -> None:

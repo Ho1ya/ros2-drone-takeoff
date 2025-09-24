@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Range
 
 
@@ -9,7 +10,7 @@ class UltrasonicListenerNode(Node):
         self.declare_parameter('range_topic', '/ultrasonic')
         self.range_topic: str = self.get_parameter('range_topic').get_parameter_value().string_value
 
-        self.subscription = self.create_subscription(Range, self.range_topic, self._on_range, 10)
+        self.subscription = self.create_subscription(Range, self.range_topic, self._on_range, qos_profile_sensor_data)
         self.get_logger().info(f'Listening ultrasonic range on {self.range_topic}')
 
         self._msg_counter: int = 0

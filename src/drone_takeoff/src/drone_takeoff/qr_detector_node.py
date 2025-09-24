@@ -2,6 +2,7 @@ from typing import Optional
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
@@ -27,7 +28,7 @@ class QrDetectorNode(Node):
         self.qr = cv2.QRCodeDetector()
 
         self.text_pub = self.create_publisher(String, self.publish_text_topic, 10)
-        self.subscription = self.create_subscription(Image, self.image_topic, self._on_image, 10)
+        self.subscription = self.create_subscription(Image, self.image_topic, self._on_image, qos_profile_sensor_data)
 
         self.get_logger().info(f'Subscribed to {self.image_topic}. Debug window: {self.show_debug_window}')
 

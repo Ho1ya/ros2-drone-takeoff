@@ -6,7 +6,7 @@ from launch_ros.actions import Node
 
 def generate_launch_description() -> LaunchDescription:
     connection_url = LaunchConfiguration('connection_url', default='udp://:14540')
-    scan_topic = LaunchConfiguration('scan_topic', default='/uav1/scan')
+    scan_topic = LaunchConfiguration('scan_topic', default='/scan')
     range_topic = LaunchConfiguration('range_topic', default='')
     qr_text_topic = LaunchConfiguration('qr_text_topic', default='/qr_detector/text')
     takeoff_altitude_m = LaunchConfiguration('takeoff_altitude_m', default='3.0')
@@ -15,14 +15,14 @@ def generate_launch_description() -> LaunchDescription:
     doorway_min_width_rad = LaunchConfiguration('doorway_min_width_rad', default='0.35')
     control_rate_hz = LaunchConfiguration('control_rate_hz', default='10.0')
     max_yaw_rate_deg_s = LaunchConfiguration('max_yaw_rate_deg_s', default='45.0')
-    depth_topic = LaunchConfiguration('depth_topic', default='/uav1/depth_camera')
+    depth_topic = LaunchConfiguration('depth_topic', default='')
     depth_obstacle_distance_m = LaunchConfiguration('depth_obstacle_distance_m', default='1.0')
     depth_center_fraction = LaunchConfiguration('depth_center_fraction', default='0.25')
-    imu_topic = LaunchConfiguration('imu_topic', default='/uav1/mavros/imu/data')
+    imu_topic = LaunchConfiguration('imu_topic', default='')
 
     return LaunchDescription([
         DeclareLaunchArgument('connection_url', default_value='udp://:14540'),
-        DeclareLaunchArgument('scan_topic', default_value='/uav1/scan'),
+        DeclareLaunchArgument('scan_topic', default_value='/scan'),
         DeclareLaunchArgument('range_topic', default_value=''),
         DeclareLaunchArgument('qr_text_topic', default_value='/qr_detector/text'),
         DeclareLaunchArgument('takeoff_altitude_m', default_value='3.0'),
@@ -31,10 +31,10 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument('doorway_min_width_rad', default_value='0.35'),
         DeclareLaunchArgument('control_rate_hz', default_value='10.0'),
         DeclareLaunchArgument('max_yaw_rate_deg_s', default_value='45.0'),
-        DeclareLaunchArgument('depth_topic', default_value='/uav1/depth_camera'),
+        DeclareLaunchArgument('depth_topic', default_value=''),
         DeclareLaunchArgument('depth_obstacle_distance_m', default_value='1.0'),
         DeclareLaunchArgument('depth_center_fraction', default_value='0.25'),
-        DeclareLaunchArgument('imu_topic', default_value='/uav1/mavros/imu/data'),
+        DeclareLaunchArgument('imu_topic', default_value=''),
         Node(
             package='drone_takeoff',
             executable='autonomy_node',

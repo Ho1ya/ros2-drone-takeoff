@@ -28,14 +28,28 @@ colcon build --packages-select drone_takeoff
 . install/setup.bash
 ```
 
-## Run PX4 + Gazebo (example)
+## Run on Ubuntu with Gazebo (PX4 SITL)
 - Start PX4 SITL with UDP endpoint 14540 (PX4 default).
 - Ensure the vehicle is reachable at `udp://:14540` or change `connection_url`.
 
-PX4 gz sim example:
+PX4 Gazebo (gz-sim) example:
 ```bash
 # In PX4 repo (example)
 make px4_sitl gz_x500
+```
+
+### Gazebo Garden bridging (ros_gz)
+Bridge topics from Gazebo Garden to ROS 2 (scan, camera, depth, imu):
+```bash
+ros2 launch drone_takeoff ros_gz_bridges.launch.py \
+  ros_scan:=/scan \
+  ros_image:=/camera/image_raw \
+  ros_depth:=/camera/depth/image_raw \
+  ros_imu:=/imu \
+  gz_scan:=/scan \
+  gz_image:=/camera \
+  gz_depth:=/depth \
+  gz_imu:=/imu
 ```
 
 ## Launch takeoff
@@ -63,8 +77,8 @@ Listen to LiDAR (`sensor_msgs/LaserScan`) and ultrasonic (`sensor_msgs/Range`).
 ```bash
 # Launch both listeners (ultrasonic optional)
 ros2 launch drone_takeoff range_sensors.launch.py \
-  scan_topic:=/uav1/scan \
-  range_topic:='' 
+  scan_topic:=/scan \
+  range_topic:=''
 
 # Inspect topics
 ros2 topic echo /uav1/scan
@@ -80,9 +94,7 @@ The autonomy node uses MAVSDK offboard velocity control. Sensors are optional an
 ```bash
 ros2 launch drone_takeoff autonomy.launch.py \
   connection_url:=udp://:14540 \
-  scan_topic:=/uav1/scan \
-  depth_topic:=/uav1/depth_camera \
-  imu_topic:=/uav1/mavros/imu/data \
+  scan_topic:=/scan \
   qr_text_topic:=/qr_detector/text \
   takeoff_altitude_m:=3.0 \
   cruise_speed_m_s:=1.0 \
@@ -90,6 +102,16 @@ ros2 launch drone_takeoff autonomy.launch.py \
   doorway_min_width_rad:=0.35 \
   control_rate_hz:=10.0 \
   max_yaw_rate_deg_s:=45.0
+
+### Combined autonomy + QR detector
+```bash
+ros2 launch drone_takeoff autonomy_with_qr.launch.py \
+  connection_url:=udp://:14540 \
+  scan_topic:=/scan \
+  image_topic:=/camera/image_raw \
+  publish_text_topic:=/qr_detector/text \
+  show_debug_window:=false
+```
 ```
 
 ## Parameters
@@ -111,3 +133,21 @@ ros2 launch drone_takeoff autonomy.launch.py \
 ## Notes
 - For ArduPilot SITL, adapt URLs (e.g. `udp://:14550`).
 - Wait for GPS/health OK in sim before takeoff.
+ 
+### Ubuntu 22.04 / Gazebo Tips
+- Ensure MAVSDK-Python can open UDP: no firewall blocking `14540`/`14550`.
+- If offboard start fails, increase readiness: send several setpoints before start (уже реализовано) и дайте 1–2 секунды после взлёта.
+- Если нет `/scan`, укажите корректный LiDAR топик: `scan_topic:=/scan`.
+- Если камеры нет, оставьте `image_topic` пустым или не запускайте QR-детектор.
+- Активируйте ROS окружение в том же shell: `. /opt/ros/humble/setup.bash && . install/setup.bash`.
+ - Проверка связи: `ros2 topic list`, `ros2 topic echo /scan`, `ros2 topic echo /qr_detector/text`.
+ - Проверка MAVSDK: при проблемах с подключением перезапустите PX4 SITL и убедитесь, что PX4 действительно шлёт на порт UDP, который слушает MAVSDK.
+ - Если лаунч видит ноду, но сообщений нет — проверьте QoS (в коде стоит `SensorData` для подписок) и частоты публикации в симе.
+
+### PX4 и GeographicLib
+- Установите геоданные GeographicLib (PX4 требует):
+```bash
+sudo apt-get install geographiclib-tools
+sudo geographiclib-get-geoids egm96-5
+```
+- Для PX4 SITL используйте `udp://:14540` (ArduPilot — `udp://:14550`).

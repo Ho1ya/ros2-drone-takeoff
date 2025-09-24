@@ -2,6 +2,7 @@ from typing import Optional
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 
 
@@ -11,7 +12,7 @@ class LidarListenerNode(Node):
         self.declare_parameter('scan_topic', '/scan')
         self.scan_topic: str = self.get_parameter('scan_topic').get_parameter_value().string_value
 
-        self.subscription = self.create_subscription(LaserScan, self.scan_topic, self._on_scan, 10)
+        self.subscription = self.create_subscription(LaserScan, self.scan_topic, self._on_scan, qos_profile_sensor_data)
         self.get_logger().info(f'Listening LiDAR scans on {self.scan_topic}')
 
         self._msg_counter: int = 0

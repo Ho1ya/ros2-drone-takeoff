@@ -54,8 +54,10 @@ class TakeoffNode(Node):
         except Exception as exc:  # noqa: BLE001
             self.get_logger().error(f'Error during takeoff sequence: {exc}')
         finally:
-            # Keep node alive; user can Ctrl+C or kill launch
-            pass
+            try:
+                self.get_logger().info('Takeoff node finished work. Waiting for shutdown...')
+            except Exception:
+                pass
 
     async def _wait_is_connected(self, drone: System) -> None:
         async for state in drone.core.connection_state():
