@@ -41,15 +41,7 @@ make px4_sitl gz_x500
 ### Gazebo Garden bridging (ros_gz)
 Bridge topics from Gazebo Garden to ROS 2 (scan, camera, depth, imu):
 ```bash
-ros2 launch drone_takeoff ros_gz_bridges.launch.py \
-  ros_scan:=/scan \
-  ros_image:=/camera/image_raw \
-  ros_depth:=/camera/depth/image_raw \
-  ros_imu:=/imu \
-  gz_scan:=/scan \
-  gz_image:=/camera \
-  gz_depth:=/depth \
-  gz_imu:=/imu
+ros2 launch drone_takeoff ros_gz_bridges.launch.py
 ```
 
 ## Launch takeoff
