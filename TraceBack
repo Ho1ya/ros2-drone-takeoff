@@ -1,67 +1,51 @@
-aerobot72@aerobot72Laptop:~$ cd Firmware2_AP/
-aerobot72@aerobot72Laptop:~/Firmware2_AP$ cd MyNodes/
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ source /opt/ros/humble/setup.bash && source ~/Firmware2_AP/MyNodes/install/setup.bash 
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ (ros2)
-usage: ros2 [-h] [--use-python-default-buffering]
-            Call `ros2 <command> -h` for more detailed usage. ...
-
-ros2 is an extensible command-line tool for ROS 2.
-
-options:
-  -h, --help            show this help message and exit
-  --use-python-default-buffering
-                        Do not force line buffering in stdout and instead use
-                        the python default buffering, which might be affected
-                        by PYTHONUNBUFFERED/-u and depends on whatever stdout
-                        is interactive or not
-
-Commands:
-  action     Various action related sub-commands
-  bag        Various rosbag related sub-commands
-  component  Various component related sub-commands
-  daemon     Various daemon related sub-commands
-  doctor     Check ROS setup and other potential issues
-  interface  Show information about ROS interfaces
-  launch     Run a launch file
-  lifecycle  Various lifecycle related sub-commands
-  multicast  Various multicast related sub-commands
-  node       Various node related sub-commands
-  param      Various param related sub-commands
-  pkg        Various package related sub-commands
-  run        Run a package specific executable
-  security   Various security related sub-commands
-  service    Various service related sub-commands
-  topic      Various topic related sub-commands
-  wtf        Use `wtf` as alias to `doctor`
-
-  Call `ros2 <command> -h` for more detailed usage.
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ (ros2 pkg prefix drone_takeoff)/bin/qr_detector_node --ros-args -p image_topic:=/uav1/camera_down -p publish_text_topic:=/qr_detector/text -p show_debug_window:=false
-bash: syntax error near unexpected token `/bin/qr_detector_node'
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ ros2 topic echo /qr_detector?text
-Traceback (most recent call last):
-  File "/opt/ros/humble/bin/ros2", line 33, in <module>
-    sys.exit(load_entry_point('ros2cli==0.18.13', 'console_scripts', 'ros2')())
-  File "/opt/ros/humble/lib/python3.10/site-packages/ros2cli/cli.py", line 91, in main
-    rc = extension.main(parser=parser, args=args)
-  File "/opt/ros/humble/lib/python3.10/site-packages/ros2topic/command/topic.py", line 41, in main
-    return extension.main(args=args)
-  File "/opt/ros/humble/lib/python3.10/site-packages/ros2topic/verb/echo.py", line 220, in main
-    qos_profile = self.choose_qos(node, args)
-  File "/opt/ros/humble/lib/python3.10/site-packages/ros2topic/verb/echo.py", line 146, in choose_qos
-    pubs_info = node.get_publishers_info_by_topic(args.topic_name)
-  File "/usr/lib/python3.10/xmlrpc/client.py", line 1122, in __call__
-    return self.__send(self.__name, args)
-  File "/usr/lib/python3.10/xmlrpc/client.py", line 1464, in __request
-    response = self.__transport.request(
-  File "/usr/lib/python3.10/xmlrpc/client.py", line 1166, in request
-    return self.single_request(host, handler, request_body, verbose)
-  File "/usr/lib/python3.10/xmlrpc/client.py", line 1182, in single_request
-    return self.parse_response(resp)
-  File "/usr/lib/python3.10/xmlrpc/client.py", line 1354, in parse_response
-    return u.close()
-  File "/usr/lib/python3.10/xmlrpc/client.py", line 668, in close
-    raise Fault(**self._stack[0])
-xmlrpc.client.Fault: <Fault 1: "<class 'ValueError'>:topic name '/qr_detector?text' is invalid: topic name is invalid, at ./src/rcl/expand_topic_name.c:73">
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ (ros2 pkg prefix drone_takeoff)/bin/takeoff_node --ros-args -p connection_url:=udp://:14550 -p takeoff_altitude_m:=3.0
-bash: syntax error near unexpected token `/bin/takeoff_node'
-aerobot72@aerobot72Laptop:~/Firmware2_AP/MyNodes$ 
+hhorus@Simulator:~/Firmware2_AP$ cd ros2-drone-takeoff/
+hhorus@Simulator:~/Firmware2_AP/ros2-drone-takeoff$ . install/setup.bash 
+hhorus@Simulator:~/Firmware2_AP/ros2-drone-takeoff$ ros2 launch drone_takeoff ros_gz_bridges.launch.py \
+  ros_scan:=/scan \
+  ros_image:=/camera/image_raw \
+  ros_depth:=/camera/depth/image_raw \
+  ros_imu:=/imu \
+  gz_scan:=/scan \
+  gz_image:=/camera \
+  gz_depth:=/depth \
+  gz_imu:=/imu
+[INFO] [launch]: All log files can be found below /home/hhorus/.ros/log/2025-09-24-14-58-23-746523-Simulator-4249
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [parameter_bridge-1]: process started with pid [4250]
+[parameter_bridge-1] [INFO] [1758715103.841138099] [ros_gz_parameter_bridge]: Creating GZ->ROS Bridge: [<launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235b70> (gz.msgs.LaserScan) -> <launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235b70> (sensor_msgs/msg/LaserScan)] (Lazy 0)
+[parameter_bridge-1] [WARN] [1758715103.901060863] [ros_gz_parameter_bridge]: Failed to create a bridge for topic [<launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235b70>] with ROS2 type [sensor_msgs/msg/LaserScan] to topic [<launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235b70>] with Gazebo Transport type [gz.msgs.LaserScan]
+[parameter_bridge-1] Bridge a collection of ROS2 and Gazebo Transport topics and services.
+[parameter_bridge-1] 
+[parameter_bridge-1]   parameter_bridge [<topic@ROS2_type@Ign_type> ..]  [<service@ROS2_srv_type[@Ign_req_type@Ign_rep_type]> ..]
+[parameter_bridge-1] 
+[parameter_bridge-1] Topics: The first @ symbol delimits the topic name from the message types.
+[parameter_bridge-1] Following the first @ symbol is the ROS message type.
+[parameter_bridge-1] The ROS message type is followed by an @, [, or ] symbol where
+[parameter_bridge-1]     @  == a bidirectional bridge, 
+[parameter_bridge-1]     [  == a bridge from Gazebo to ROS,
+[parameter_bridge-1]     ]  == a bridge from ROS to Gazebo.
+[parameter_bridge-1] Following the direction symbol is the Gazebo Transport message type.
+[parameter_bridge-1] 
+[parameter_bridge-1] Services: The first @ symbol delimits the service name from the types.
+[parameter_bridge-1] Following the first @ symbol is the ROS service type.
+[parameter_bridge-1] Optionally, you can include the Gazebo request and response type
+[parameter_bridge-1] separated by the @ symbol.
+[parameter_bridge-1] It is only supported to expose Gazebo servces as ROS services, i.e.
+[parameter_bridge-1] the ROS service will forward request to the Gazebo service and then forward
+[parameter_bridge-1] the response back to the ROS client.
+[parameter_bridge-1] 
+[parameter_bridge-1] A bidirectional bridge example:
+[parameter_bridge-1]     parameter_bridge /chatter@std_msgs/String@ignition.msgs.StringMsg
+[parameter_bridge-1] 
+[parameter_bridge-1] A bridge from Gazebo to ROS example:
+[parameter_bridge-1]     parameter_bridge /chatter@std_msgs/String[ignition.msgs.StringMsg
+[parameter_bridge-1] 
+[parameter_bridge-1] A bridge from ROS to Gazebo example:
+[parameter_bridge-1]     parameter_bridge /chatter@std_msgs/String]ignition.msgs.StringMsg
+[parameter_bridge-1] A service bridge:
+[parameter_bridge-1]     parameter_bridge /world/default/control@ros_gz_interfaces/srv/ControlWorld
+[parameter_bridge-1] Or equivalently:
+[parameter_bridge-1]     parameter_bridge /world/default/control@ros_gz_interfaces/srv/ControlWorld@ignition.msgs.WorldControl@ignition.msgs.Boolean
+[parameter_bridge-1] 
+[ERROR] [parameter_bridge-1]: process has died [pid 4250, exit code 255, cmd '/opt/ros/humble/lib/ros_gz_bridge/parameter_bridge <launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235b70>@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan -r [<launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235b70>, ':=', <launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba44ddc30>] <launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235930>@sensor_msgs/msg/Image@gz.msgs.Image -r [<launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235930>, ':=', <launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba44df1f0>] <launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235660>@sensor_msgs/msg/Image@gz.msgs.Image -r [<launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235660>, ':=', <launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba44dd750>] <launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235300>@sensor_msgs/msg/Imu@gz.msgs.IMU -r [<launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4235300>, ':=', <launch.substitutions.launch_configuration.LaunchConfiguration object at 0x777ba4237f10>] --ros-args -r __node:=ros_gz_parameter_bridge'].
+hhorus@Simulator:~/Firmware2_AP/ros2-drone-takeoff$ 
