@@ -29,7 +29,8 @@ def euler_to_quaternion(roll, pitch, yaw):
 class Planner(Node):
     def __init__(self):
         super().__init__('planner')
-        self.pub = self.create_publisher(AttitudeTarget, '/mavros/setpoint_raw/attitude', 10)
+        self.pub = self.create_publisher(AttitudeTarget, '/uav1/setpoint_raw/attitude', 10)
+        self.arm = self.create_publisher(AttitudeTarget, '/uav1/cmd/arming', 10)
         self._action_server = ActionServer(
             self,
             NavigateToPose,
@@ -139,6 +140,7 @@ class Planner(Node):
             t += dt
         if DEBUG:
             self.get_logger().info(f"[DEBUG] Planned trajectory length: {len(trajectory)} steps")
+        self.arm.publish('1')
         return trajectory
 
 def main(args=None):
