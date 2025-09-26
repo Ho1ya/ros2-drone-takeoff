@@ -1,17 +1,16 @@
+#!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer
-from geometry_msgs.msg import PoseStamped, Point, Quaternion, Vector3
+from geometry_msgs.msg import PoseStamped, Vector3, Quaternion, Point
 from mavros_msgs.msg import AttitudeTarget
 from mavros_msgs.srv import CommandBool
 from nav2_msgs.action import NavigateToPose
 import math
 import numpy as np
-from collections import deque
-import time
 
-DEBUG = 1
 G = 9.81  # гравитация
+
 
 def euler_to_quaternion(roll, pitch, yaw):
     cy = math.cos(yaw * 0.5)
@@ -21,18 +20,52 @@ def euler_to_quaternion(roll, pitch, yaw):
     cr = math.cos(roll * 0.5)
     sr = math.sin(roll * 0.5)
     q = Quaternion()
-    q.w = cr*cp*cy + sr*sp*sy
-    q.x = sr*cp*cy - cr*sp*sy
-    q.y = cr*sp*cy + sr*cp*sy
-    q.z = cr*cp*sy - sr*sp*cy
+    q.w = cr * cp * cy + sr * sp * sy
+    q.x = sr * cp * cy - cr * sp * sy
+    q.y = cr * sp * cy + sr * cp * sy
+    q.z = cr * cp * sy - sr * sp * cy
     return q
 
+
+class PID:
+    def __init__(self, kp, ki, kd, max_output=None):
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.prev_error = 0.0
+        self.integral = 0.0
+        self.max_output = max_output
+
+    def update(self, error, dt):
+        self.integral += error * dt
+        derivative = (error - self.prev_error) / dt if dt > 0 else 0.0
+        self.prev_error = error
+        output = self.kp * error + self.ki * self.integral + self.kd * derivative
+        if self.max_output is not None:
+            output = max(-self.max_output, min(self.max_output, output))
+        return output
+
+
 class Planner(Node):
-    def __init__(self):
+    def __init__(self, pid_params=None, v_max=1.0):
         super().__init__('planner')
-        self.pub = self.create_publisher(AttitudeTarget, '/uav1/setpoint_raw/attitude', 10)
+
+        # PID параметры (можно настраивать)
+        pid_params = pid_params or {'kp': 1.0, 'ki': 0.0, 'kd': 0.5}
+        self.pid_x = PID(**pid_params, max_output=v_max)
+        self.pid_y = PID(**pid_params, max_output=v_max)
+        self.pid_z = PID(**pid_params, max_output=v_max)
+
+        self.v_max = v_max
+        self.dt = 0.05  # частота управления 20 Гц
+
+        # Публикация команд
+        self.pub = self.create_publisher(
+            AttitudeTarget, '/uav1/setpoint_raw/attitude', 10
+        )
         self.arm_client = self.create_client(CommandBool, '/uav1/cmd/arming')
 
+        # Action server
         self._action_server = ActionServer(
             self,
             NavigateToPose,
@@ -40,22 +73,30 @@ class Planner(Node):
             self.execute_callback
         )
 
-        self._last_msg = AttitudeTarget()
-        self._last_msg.type_mask = (
-            AttitudeTarget.IGNORE_ROLL_RATE |
-            AttitudeTarget.IGNORE_PITCH_RATE |
-            AttitudeTarget.IGNORE_YAW_RATE
+        # Подписка на позицию
+        self.current_pos = np.array([0.0, 0.0, 0.0])
+        self.pos_sub = self.create_subscription(
+            PoseStamped, '/uav1/global_position/local', self.pos_callback, 10
         )
-        self._last_msg.orientation = euler_to_quaternion(0,0,0)
-        self._last_msg.body_rate = Vector3()
-        self._last_msg.thrust = 0.0  # нулевая тяга при инициализации
 
-        self._trajectory = deque()
-        self._target_altitude = 0.5
+        # Текущая цель
+        self.target_pos = None
 
-        # Таймер для выполнения траектории
-        self.create_timer(0.05, self._step_trajectory)
-        self.get_logger().info("Planner ready and publishing /mavros/setpoint_raw/attitude")
+        # Плавный старт
+        self.current_speed_factor = 0.0
+        self.acceleration = 0.5  # за 2 секунды выйдет на максимум
+
+        # Таймер управления
+        self.create_timer(self.dt, self._control_step)
+
+        self.get_logger().info("Planner started and ready")
+
+    def pos_callback(self, msg):
+        self.current_pos = np.array([
+            msg.pose.position.x,
+            msg.pose.position.y,
+            msg.pose.position.z
+        ])
 
     def arm_uav(self):
         if not self.arm_client.wait_for_service(timeout_sec=5.0):
@@ -65,40 +106,79 @@ class Planner(Node):
         req.value = True
         future = self.arm_client.call_async(req)
         rclpy.spin_until_future_complete(self, future)
-        if future.result().success:
+        if future.result() and future.result().success:
             self.get_logger().info("UAV armed successfully")
             return True
         else:
             self.get_logger().error("Failed to arm UAV")
             return False
 
-    def send_zero_attitude(self, count=10):
-        zero_msg = AttitudeTarget()
-        zero_msg.header.frame_id = "base_link"
-        zero_msg.orientation = euler_to_quaternion(0,0,0)
-        zero_msg.body_rate = Vector3(x=0.0, y=0.0, z=0.0)
-        zero_msg.thrust = 0.0
-        zero_msg.type_mask = (
-            AttitudeTarget.IGNORE_ROLL_RATE |
-            AttitudeTarget.IGNORE_PITCH_RATE |
-            AttitudeTarget.IGNORE_YAW_RATE
-        )
-        for _ in range(count):
-            zero_msg.header.stamp = self.get_clock().now().to_msg()
-            self.pub.publish(zero_msg)
-            if DEBUG:
-                self.get_logger().info("[DEBUG] Sending zero AttitudeTarget")
-            time.sleep(0.05)  # 20Hz
+    def execute_callback(self, goal_handle):
+        self.get_logger().info("NavigateToPose goal received")
 
-    def _step_trajectory(self):
-        if not self._trajectory:
+        if not self.arm_uav():
+            goal_handle.abort()
+            return NavigateToPose.Result()
+
+        self.target_pos = np.array([
+            goal_handle.request.pose.pose.position.x,
+            goal_handle.request.pose.pose.position.y,
+            goal_handle.request.pose.pose.position.z
+        ])
+        self.current_speed_factor = 0.0  # сброс плавного старта
+
+        # Цикл ожидания достижения цели
+        while rclpy.ok():
+            error = np.linalg.norm(self.target_pos - self.current_pos)
+
+            # Feedback
+            fb = NavigateToPose.Feedback()
+            fb.current_pose = PoseStamped()
+            fb.current_pose.pose.position = Point(
+                x=float(self.current_pos[0]),
+                y=float(self.current_pos[1]),
+                z=float(self.current_pos[2])
+            )
+            goal_handle.publish_feedback(fb)
+
+            if error < 0.05:  # достигли цели
+                break
+
+            rclpy.spin_once(self, timeout_sec=self.dt)
+
+        self.get_logger().info("Target reached, hovering forever")
+        goal_handle.succeed()
+        return NavigateToPose.Result()
+
+    def _control_step(self):
+        if self.target_pos is None:
             return
-        t, vx, vy, vz = self._trajectory.popleft()
 
+        # Плавный набор скорости
+        self.current_speed_factor = min(
+            1.0, self.current_speed_factor + self.acceleration * self.dt
+        )
+
+        # Ошибка по осям
+        error = self.target_pos - self.current_pos
+        vx = self.pid_x.update(error[0], self.dt) * self.current_speed_factor
+        vy = self.pid_y.update(error[1], self.dt) * self.current_speed_factor
+        vz = self.pid_z.update(error[2], self.dt) * self.current_speed_factor
+
+        # Roll/Pitch для коррекции положения
         pitch = math.atan2(vx, G)
         roll = math.atan2(-vy, G)
-        thrust = max(0.0, min(1.0, 0.5 + 0.4*(self._target_altitude - vz)))
 
+        # Коррекция thrust с учётом наклона
+        cos_term = math.cos(roll) * math.cos(pitch)
+        if abs(cos_term) < 1e-3:
+            cos_term = 1e-3  # защита от деления на ноль
+
+        desired_force = G + vz
+        thrust = desired_force / (G * cos_term)
+        thrust = max(0.0, min(1.0, thrust))
+
+        # Публикация команды
         msg = AttitudeTarget()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.orientation = euler_to_quaternion(roll, pitch, 0.0)
@@ -109,84 +189,8 @@ class Planner(Node):
             AttitudeTarget.IGNORE_PITCH_RATE |
             AttitudeTarget.IGNORE_YAW_RATE
         )
-        self._last_msg = msg
         self.pub.publish(msg)
 
-        if DEBUG:
-            self.get_logger().info(
-                f"[DEBUG] Step t={t:.2f}s | vx={vx:.2f}, vy={vy:.2f}, vz={vz:.2f} | "
-                f"roll={math.degrees(roll):.2f}°, pitch={math.degrees(pitch):.2f}°, thrust={thrust:.2f}"
-            )
-
-    def execute_callback(self, goal_handle):
-        self.get_logger().info("NavigateToPose goal received")
-        self.send_zero_attitude(count=10)
-        # Армим UAV перед стартом
-        if not self.arm_uav():
-            goal_handle.abort()
-            return NavigateToPose.Result()
-
-        # Отправка "нулевых" сетпоинтов для обнуления состояния
-        self.send_zero_attitude(count=10)
-
-        start = [0.0,0.0,0.0]
-        goal = [
-            goal_handle.request.pose.pose.position.x,
-            goal_handle.request.pose.pose.position.y,
-            goal_handle.request.pose.pose.position.z
-        ]
-
-        trajectory = self.plan(start, goal)
-        self._trajectory = deque(trajectory)
-        self._target_altitude = goal[2]
-
-        if DEBUG:
-            self.get_logger().info(f"[DEBUG] Goal: x={goal[0]:.2f}, y={goal[1]:.2f}, z={goal[2]:.2f}")
-            self.get_logger().info(f"[DEBUG] Trajectory steps: {len(trajectory)}")
-
-        # feedback
-        for t,vx,vy,vz in trajectory:
-            fb = NavigateToPose.Feedback()
-            fb.current_pose = PoseStamped()
-            fb.current_pose.pose.position = Point(x=vx, y=vy, z=vz)
-            goal_handle.publish_feedback(fb)
-
-        goal_handle.succeed()
-        self.get_logger().info("Trajectory finished")
-        return NavigateToPose.Result()
-
-    def plan(self, start, goal, v_max=1.0, a_max=0.5, dt=0.1):
-        start, goal = np.array(start), np.array(goal)
-        direction = goal - start
-        distance = np.linalg.norm(direction)
-        if distance == 0:
-            return [(0.0,0.0,0.0,0.0)]
-        unit_dir = direction / distance
-        t_acc = v_max / a_max
-        d_acc = 0.5*a_max*t_acc**2
-        if 2*d_acc > distance:
-            v_peak = math.sqrt(a_max*distance)
-            t_acc = v_peak / a_max
-            t_total = 2*t_acc
-        else:
-            d_cruise = distance-2*d_acc
-            t_cruise = d_cruise/v_max
-            t_total = 2*t_acc + t_cruise
-        trajectory=[]
-        t=0.0
-        while t <= t_total+dt:
-            if t < t_acc:
-                v = a_max*t
-            elif t < t_total-t_acc:
-                v = v_max
-            else:
-                v = a_max*(t_total-t)
-            v_vec = unit_dir*v
-            trajectory.append((t,v_vec[0],v_vec[1],v_vec[2]))
-            t += dt
-        if DEBUG:
-            self.get_logger().info(f"[DEBUG] Planned trajectory length: {len(trajectory)} steps")
-        return trajectory
 
 def main(args=None):
     rclpy.init(args=args)
@@ -196,6 +200,7 @@ def main(args=None):
     finally:
         planner.destroy_node()
         rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
