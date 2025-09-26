@@ -5,11 +5,12 @@ from geometry_msgs.msg import PoseStamped, Point, Quaternion, Vector3
 from mavros_msgs.msg import AttitudeTarget
 from nav2_msgs.action import NavigateToPose
 import math
-import time
-import asyncio
 import numpy as np
+from collections import deque
 
-G = 9.81
+DEBUG = 1  # 0 - логи минимальны, 1 - детальные
+
+G = 9.81  # гравитация
 
 def euler_to_quaternion(roll, pitch, yaw):
     cy = math.cos(yaw * 0.5)
@@ -19,10 +20,10 @@ def euler_to_quaternion(roll, pitch, yaw):
     cr = math.cos(roll * 0.5)
     sr = math.sin(roll * 0.5)
     q = Quaternion()
-    q.w = cr * cp * cy + sr * sp * sy
-    q.x = sr * cp * cy - cr * sp * sy
-    q.y = cr * sp * cy + sr * cp * sy
-    q.z = cr * cp * sy - sr * sp * cy
+    q.w = cr*cp*cy + sr*sp*sy
+    q.x = sr*cp*cy - cr*sp*sy
+    q.y = cr*sp*cy + sr*cp*sy
+    q.z = cr*cp*sy - sr*sp*cy
     return q
 
 class Planner(Node):
@@ -41,25 +42,29 @@ class Planner(Node):
             AttitudeTarget.IGNORE_PITCH_RATE |
             AttitudeTarget.IGNORE_YAW_RATE
         )
-        self._last_msg.orientation = euler_to_quaternion(0.0, 0.0, 0.0)
+        self._last_msg.orientation = euler_to_quaternion(0,0,0)
         self._last_msg.body_rate = Vector3()
         self._last_msg.thrust = 0.5
 
-        # публикуем сетпоинт постоянно
-        self.create_timer(0.05, self._publish_current)
+        self._trajectory = deque()
+        self._target_altitude = 0.5
 
-        self.get_logger().info("Planner ready (no Move import)")
+        # Таймер для выполнения траектории
+        self.create_timer(0.05, self._step_trajectory)
+        self.get_logger().info("Planner ready and publishing /mavros/setpoint_raw/attitude")
 
-    def _publish_current(self):
-        self._last_msg.header.stamp = self.get_clock().now().to_msg()
-        self.pub.publish(self._last_msg)
+    def _step_trajectory(self):
+        if not self._trajectory:
+            return
+        t, vx, vy, vz = self._trajectory.popleft()
 
-    def attitude_from_velocity(self, vx, vy, yaw=0.0, thrust=0.5):
         pitch = math.atan2(vx, G)
         roll = math.atan2(-vy, G)
+        thrust = max(0.0, min(1.0, 0.5 + 0.4*(self._target_altitude - vz)))
+
         msg = AttitudeTarget()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.orientation = euler_to_quaternion(roll, pitch, yaw)
+        msg.orientation = euler_to_quaternion(roll, pitch, 0.0)
         msg.body_rate = Vector3()
         msg.thrust = thrust
         msg.type_mask = (
@@ -68,8 +73,15 @@ class Planner(Node):
             AttitudeTarget.IGNORE_YAW_RATE
         )
         self._last_msg = msg
+        self.pub.publish(msg)
 
-    async def execute_callback(self, goal_handle):
+        if DEBUG:
+            self.get_logger().info(
+                f"[DEBUG] Step t={t:.2f}s | vx={vx:.2f}, vy={vy:.2f}, vz={vz:.2f} | "
+                f"roll={math.degrees(roll):.2f}°, pitch={math.degrees(pitch):.2f}°, thrust={thrust:.2f}"
+            )
+
+    def execute_callback(self, goal_handle):
         self.get_logger().info("NavigateToPose goal received")
         start = [0.0,0.0,0.0]
         goal = [
@@ -78,22 +90,22 @@ class Planner(Node):
             goal_handle.request.pose.pose.position.z
         ]
         trajectory = self.plan(start, goal)
+        self._trajectory = deque(trajectory)
+        self._target_altitude = goal[2]
 
-        t_start = time.time()
-        for t, vx, vy, vz in trajectory:
-            while time.time() - t_start < t:
-                await asyncio.sleep(0.001)
-            self.attitude_from_velocity(vx, vy, yaw=0.0, thrust=0.5)
+        if DEBUG:
+            self.get_logger().info(f"[DEBUG] Goal: x={goal[0]:.2f}, y={goal[1]:.2f}, z={goal[2]:.2f}")
+            self.get_logger().info(f"[DEBUG] Trajectory steps: {len(trajectory)}")
+
+        # feedback
+        for t,vx,vy,vz in trajectory:
             fb = NavigateToPose.Feedback()
             fb.current_pose = PoseStamped()
             fb.current_pose.pose.position = Point(x=vx, y=vy, z=vz)
             goal_handle.publish_feedback(fb)
 
-        # стоп
-        self._last_msg.thrust = 0.0
-        self._last_msg.orientation = euler_to_quaternion(0,0,0)
-        self.get_logger().info("Trajectory finished")
         goal_handle.succeed()
+        self.get_logger().info("Trajectory finished")
         return NavigateToPose.Result()
 
     def plan(self, start, goal, v_max=1.0, a_max=0.5, dt=0.1):
@@ -104,10 +116,10 @@ class Planner(Node):
             return [(0.0,0.0,0.0,0.0)]
         unit_dir = direction / distance
         t_acc = v_max / a_max
-        d_acc = 0.5 * a_max * t_acc**2
-        if 2*d_acc>distance:
+        d_acc = 0.5*a_max*t_acc**2
+        if 2*d_acc > distance:
             v_peak = math.sqrt(a_max*distance)
-            t_acc = v_peak/a_max
+            t_acc = v_peak / a_max
             t_total = 2*t_acc
         else:
             d_cruise = distance-2*d_acc
@@ -115,16 +127,18 @@ class Planner(Node):
             t_total = 2*t_acc + t_cruise
         trajectory=[]
         t=0.0
-        while t<=t_total+dt:
-            if t<t_acc:
+        while t <= t_total+dt:
+            if t < t_acc:
                 v = a_max*t
-            elif t<t_total-t_acc:
+            elif t < t_total-t_acc:
                 v = v_max
             else:
                 v = a_max*(t_total-t)
             v_vec = unit_dir*v
             trajectory.append((t,v_vec[0],v_vec[1],v_vec[2]))
-            t+=dt
+            t += dt
+        if DEBUG:
+            self.get_logger().info(f"[DEBUG] Planned trajectory length: {len(trajectory)} steps")
         return trajectory
 
 def main(args=None):
