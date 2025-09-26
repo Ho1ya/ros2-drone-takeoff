@@ -5,7 +5,8 @@ from std_srvs.srv import SetBool
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Imu
 from sensor_msgs.msg import FluidPressure
-from mavros_msgs.msg import AttitudeTarget, Vector3
+from mavros_msgs.msg import AttitudeTarget
+from geometry_msgs.msg import Vector3
 import math
 
 G = 9.81

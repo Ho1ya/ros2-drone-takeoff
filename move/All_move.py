@@ -180,7 +180,7 @@ class Planner(Node):
             goal_handle.publish_feedback(fb)
 
         # дождаться пока траектория исполнится (таймер _step_trajectory делает работу)
-        
+
 
         # после завершения включаем IDLE обратно
         enabled_ok = self._set_idle(True)
