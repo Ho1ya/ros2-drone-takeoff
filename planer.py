@@ -8,6 +8,7 @@ import asyncio
 from my_msgs.action import PlanPath
 from move import Move
 
+
 class Planner(Node):
     def __init__(self):
         super().__init__('planner')
@@ -82,6 +83,9 @@ class Planner(Node):
         trajectory = self.plan(start, goal, v_max, a_max, dt)
         self.get_logger().info(f"Trajectory has {len(trajectory)} steps")
 
+        # Целевая высота (берём из goal)
+        target_alt = float(goal[2])
+
         # 2. Исполняем траекторию строго по времени
         t_start = time.time()
         for (t, vx, vy, vz) in trajectory:
@@ -89,16 +93,20 @@ class Planner(Node):
             while time.time() - t_start < t:
                 await asyncio.sleep(0.001)
 
-            # Отправляем скорость в Move
-            self.move.send_velocity(vx, vy, vz, 0.0)
+            # Горизонтальные скорости -> attitude
+            # (yaw = 0.0, thrust пока не задаём)
+            self.move.attitude_from_velocity(vx, vy, yaw=0.0, thrust=None)
 
-            # Feedback для клиента
+            # Высота -> thrust через P-контроллер
+            self.move.hold_altitude(target_alt)
+
+            # Feedback для клиента (передаём текущую желаемую скорость)
             fb = PlanPath.Feedback()
             fb.current_point = Point(x=vx, y=vy, z=vz)
             goal_handle.publish_feedback(fb)
 
-        # 3. Останавливаем дрон
-        self.move.send_velocity(0.0, 0.0, 0.0, 0.0)
+        # 3. Останов: нейтральные углы + нулевая тяга
+        self.move.set_attitude(roll=0.0, pitch=0.0, yaw=0.0, thrust=0.0)
 
         # 4. Отправляем результат
         result = PlanPath.Result()
