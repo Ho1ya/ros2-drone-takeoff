@@ -120,14 +120,14 @@ class Planner(Node):
 
     def execute_callback(self, goal_handle):
         self.get_logger().info("NavigateToPose goal received")
-
+        self.send_zero_attitude(count=10)
         # Армим UAV перед стартом
         if not self.arm_uav():
             goal_handle.abort()
             return NavigateToPose.Result()
 
         # Отправка "нулевых" сетпоинтов для обнуления состояния
-        self.send_zero_attitude(count=20)
+        self.send_zero_attitude(count=10)
 
         start = [0.0,0.0,0.0]
         goal = [
