@@ -1,0 +1,14 @@
+# Goal
+geometry_msgs/Point start      # начальная точка (x0,y0,z0)
+geometry_msgs/Point goal       # конечная точка (x1,y1,z1)
+float64 v_max                  # максимальная скорость (м/с)
+float64 a_max                  # максимальное ускорение (м/с^2)
+float64 dt                     # шаг дискретизации (с)
+
+---
+# Result
+bool success                   # true, если план и выполнение прошли успешно
+
+---
+# Feedback
+geometry_msgs/Vector3 current_velocity   # текущая скорость (vx, vy, vz)

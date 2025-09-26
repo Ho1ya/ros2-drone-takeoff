@@ -1,0 +1,9 @@
+# ТОЛЬКО Python-библиотеки (ROS2 пакеты устанавливаются отдельно!)
+opencv-contrib-python>=4.8.0
+numpy>=1.24.0
+scipy>=1.10.0
+pyzbar>=0.1.9
+pillow>=9.0.0
+matplotlib>=3.7.0
+rich>=13.0.0
+transforms3d>=0.4.1  # для работы с 3D преобразованиями
