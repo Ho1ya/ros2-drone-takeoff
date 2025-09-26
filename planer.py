@@ -1,16 +1,15 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer
-from geometry_msgs.msg import Point, Vector3, Quaternion
-from sensor_msgs.msg import Imu, FluidPressure
+from geometry_msgs.msg import Point, PointStamped, Vector3, Quaternion
 from mavros_msgs.msg import AttitudeTarget
-from std_msgs.msg import Bool
+from sensor_msgs.msg import Imu, FluidPressure
+from nav2_msgs.action import NavigateToPose
 import math
 import time
 import numpy as np
 
 G = 9.81  # гравитация для аппроксимации наклонов
-
 
 def euler_to_quaternion(roll: float, pitch: float, yaw: float) -> Quaternion:
     cy = math.cos(yaw * 0.5)
@@ -27,35 +26,39 @@ def euler_to_quaternion(roll: float, pitch: float, yaw: float) -> Quaternion:
     q.z = cr * cp * sy - sr * sp * cy
     return q
 
-
 class Planner(Node):
     def __init__(self):
-        super().__init__('planner_idle')
+        super().__init__('planner_idle_action')
+
+        # Action Server для внешних goal
+        self._action_server = ActionServer(
+            self,
+            NavigateToPose,
+            'navigate_to_pose',
+            self.execute_callback
+        )
 
         # Publisher AttitudeTarget
         self.pub = self.create_publisher(AttitudeTarget,
-                                         '/mavros/setpoint_raw/attitude',
-                                         10)
+                                         '/mavros/setpoint_raw/attitude', 10)
 
-        # ----------------- Sensors -----------------
-        self.vx = 0.0
-        self.vy = 0.0
-        self.sub_imu = self.create_subscription(Imu, '/imu/data', self.imu_callback, 10)
-
+        # Подписки на барометр и IMU
         self.current_alt = None
         self.target_alt = None
-        self.sub_barometer = self.create_subscription(FluidPressure, '/barometer', self.barometer_callback, 10)
+        self.vx = 0.0
+        self.vy = 0.0
+        self.sub_alt = self.create_subscription(
+            FluidPressure, '/uav1/global_position/rel_alt', self.alt_callback, 10)
+        self.sub_imu = self.create_subscription(
+            Imu, '/uav1/imu/data', self.imu_callback, 10)
 
-        # ----------------- IDLE -----------------
+        # IDLE параметры
         self.idle_enabled = True
         self.kp_xy = 0.2
         self.kp_z = 0.5
         self.feedforward = 0.5
-        self.idle_publish_hz = 20.0
-        self.create_timer(1.0 / self.idle_publish_hz, self.idle_callback)
-
-        # Внешнее управление IDLE
-        self.create_subscription(Bool, '/idle_enable', self.idle_cmd_callback, 10)
+        self.idle_hz = 20.0
+        self.create_timer(1.0 / self.idle_hz, self.idle_callback)
 
         # Последнее сообщение
         self._last_msg = AttitudeTarget()
@@ -68,31 +71,27 @@ class Planner(Node):
         self._last_msg.body_rate = Vector3()
         self._last_msg.thrust = 0.0
 
-        # ----------------- Planner Trajectory -----------------
-        self.trajectory = []  # список (t, vx, vy, vz)
+        # Траектория
+        self.trajectory = []
         self.traj_index = 0
         self.traj_start_time = None
-        self.traj_timer = self.create_timer(0.01, self.trajectory_callback)  # 100 Hz для исполнения
+        self.create_timer(0.01, self.trajectory_callback)  # 100 Hz
 
-        self.get_logger().info("Planner with IMU + Barometer IDLE initialized")
+        self.get_logger().info("Planner initialized with IDLE and NavigateToPose support")
 
-    # ----------------- CALLBACKS -----------------
-    def imu_callback(self, msg: Imu):
-        self.vx = msg.linear_acceleration.x
-        self.vy = msg.linear_acceleration.y
-
-    def barometer_callback(self, msg: FluidPressure):
+    # -------------------- CALLBACKS --------------------
+    def alt_callback(self, msg: FluidPressure):
         P0 = 101325.0
         P = msg.fluid_pressure
         self.current_alt = (1.0 - (P / P0) ** 0.1903) * 44330.0
         if self.target_alt is None:
             self.target_alt = self.current_alt
 
-    def idle_cmd_callback(self, msg: Bool):
-        self.idle_enabled = msg.data
-        self.get_logger().info(f"IDLE {'enabled' if self.idle_enabled else 'disabled'}")
+    def imu_callback(self, msg: Imu):
+        self.vx = msg.linear_acceleration.x
+        self.vy = msg.linear_acceleration.y
 
-    # ----------------- IDLE -----------------
+    # -------------------- IDLE --------------------
     def idle_callback(self):
         if not self.idle_enabled or self.current_alt is None or self.trajectory:
             return
@@ -116,7 +115,7 @@ class Planner(Node):
         self._last_msg = msg
         self.pub.publish(msg)
 
-    # ----------------- Trajectory -----------------
+    # -------------------- ТРАЕКТОРИЯ --------------------
     def plan(self, p0, p1, v_max=1.0, a_max=0.5, dt=0.1):
         p0, p1 = np.array(p0), np.array(p1)
         direction = p1 - p0
@@ -167,7 +166,7 @@ class Planner(Node):
         self._last_msg = msg
         self.pub.publish(msg)
 
-    # ----------------- Trajectory Execution -----------------
+    # -------------------- TRAJECTORY EXECUTION --------------------
     def execute_trajectory(self, start, goal):
         self.idle_enabled = False
         self.trajectory = self.plan(start, goal)
@@ -181,10 +180,8 @@ class Planner(Node):
 
         t_elapsed = time.time() - self.traj_start_time
         if self.traj_index >= len(self.trajectory):
-            # Завершили траекторию
             self.trajectory = []
             self.idle_enabled = True
-            self._last_msg.thrust = 0.5  # держим hover
             return
 
         t, vx, vy, vz = self.trajectory[self.traj_index]
@@ -192,20 +189,29 @@ class Planner(Node):
             self.attitude_from_velocity(vx, vy, thrust=0.5)
             self.traj_index += 1
 
-    # ----------------- Action Callback -----------------
+    # -------------------- ACTION CALLBACK --------------------
     def execute_callback(self, goal_handle):
-        self.get_logger().info("Goal received, executing trajectory")
-        start = [0.0, 0.0, self.current_alt or 0.0]
+        self.get_logger().info("Received NavigateToPose goal, exiting IDLE")
+        start = [0.0, 0.0, 0.0]  # можно заменить на текущую позицию, если есть
         goal = [goal_handle.request.pose.pose.position.x,
                 goal_handle.request.pose.pose.position.y,
                 goal_handle.request.pose.pose.position.z]
 
         self.execute_trajectory(start, goal)
-        # Сразу помечаем goal как успешный, потому что выполнение идёт в таймере
+
+        # Feedback loop
+        while self.trajectory:
+            # Можно добавить feedback, например текущее расстояние
+            time.sleep(0.01)
+
+        self.get_logger().info("Trajectory finished, entering IDLE")
+        self.idle_enabled = True
+
+        result = NavigateToPose.Result()
         goal_handle.succeed()
-        return goal_handle.result
+        return result
 
-
+# -------------------- MAIN --------------------
 def main(args=None):
     rclpy.init(args=args)
     node = Planner()
@@ -214,7 +220,6 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
 
 if __name__ == "__main__":
     main()
