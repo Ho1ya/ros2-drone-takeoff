@@ -50,7 +50,7 @@ class Planner(Node):
     def __init__(self, pid_params=None, v_max=1.0):
         super().__init__('planner')
 
-        # PID параметры (можно настраивать)
+        # PID параметры
         pid_params = pid_params or {'kp': 1.0, 'ki': 0.0, 'kd': 0.5}
         self.pid_x = PID(**pid_params, max_output=v_max)
         self.pid_y = PID(**pid_params, max_output=v_max)
@@ -79,8 +79,9 @@ class Planner(Node):
             PoseStamped, '/uav1/global_position/local', self.pos_callback, 10
         )
 
-        # Текущая цель
+        # Текущая цель и активный goal
         self.target_pos = None
+        self.active_goal = None
 
         # Плавный старт
         self.current_speed_factor = 0.0
@@ -107,7 +108,7 @@ class Planner(Node):
         req.value = True
 
         try:
-            result = self.arm_client.call(req)  # СИНХРОННЫЙ вызов
+            result = self.arm_client.call(req)  # синхронный вызов
         except Exception as e:
             self.get_logger().error(f"Arming call failed: {e}")
             return False
@@ -133,28 +134,10 @@ class Planner(Node):
         ])
         self.current_speed_factor = 0.0  # сброс плавного старта
 
-        # Цикл ожидания достижения цели
-        while rclpy.ok():
-            error = np.linalg.norm(self.target_pos - self.current_pos)
+        # Сохраняем goal, завершим его позже из _control_step
+        self.active_goal = goal_handle
 
-            # Feedback
-            fb = NavigateToPose.Feedback()
-            fb.current_pose = PoseStamped()
-            fb.current_pose.pose.position = Point(
-                x=float(self.current_pos[0]),
-                y=float(self.current_pos[1]),
-                z=float(self.current_pos[2])
-            )
-            goal_handle.publish_feedback(fb)
-
-            if error < 0.05:  # достигли цели
-                break
-
-            rclpy.spin_once(self, timeout_sec=self.dt)
-
-        self.get_logger().info("Target reached, hovering forever")
-        goal_handle.succeed()
-        return NavigateToPose.Result()
+        return NavigateToPose.Result()  # сразу возвращаем
 
     def _control_step(self):
         if self.target_pos is None:
@@ -178,7 +161,7 @@ class Planner(Node):
         # Коррекция thrust с учётом наклона
         cos_term = math.cos(roll) * math.cos(pitch)
         if abs(cos_term) < 1e-3:
-            cos_term = 1e-3  # защита от деления на ноль
+            cos_term = 1e-3
 
         desired_force = G + vz
         thrust = desired_force / (G * cos_term)
@@ -196,6 +179,23 @@ class Planner(Node):
             AttitudeTarget.IGNORE_YAW_RATE
         )
         self.pub.publish(msg)
+
+        # Проверка завершения goal
+        if self.active_goal is not None:
+            dist_error = np.linalg.norm(error)
+            fb = NavigateToPose.Feedback()
+            fb.current_pose = PoseStamped()
+            fb.current_pose.pose.position = Point(
+                x=float(self.current_pos[0]),
+                y=float(self.current_pos[1]),
+                z=float(self.current_pos[2])
+            )
+            self.active_goal.publish_feedback(fb)
+
+            if dist_error < 0.05:
+                self.get_logger().info("Target reached, hovering forever")
+                self.active_goal.succeed()
+                self.active_goal = None
 
 
 def main(args=None):
