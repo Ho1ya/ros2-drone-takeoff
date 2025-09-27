@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer
-from geometry_msgs.msg import Point, PoseStamped, Vector3, Quaternion
+from geometry_msgs.msg import PoseStamped, Point, Quaternion, Vector3
 from mavros_msgs.msg import AttitudeTarget
 from mavros_msgs.srv import CommandBool
 from nav2_msgs.action import NavigateToPose
@@ -10,6 +10,7 @@ import numpy as np
 from collections import deque
 import time
 
+DEBUG = 1
 G = 9.81  # гравитация
 
 def euler_to_quaternion(roll, pitch, yaw):
@@ -27,10 +28,8 @@ def euler_to_quaternion(roll, pitch, yaw):
     return q
 
 class Planner(Node):
-    def __init__(self, idle_node):
+    def __init__(self):
         super().__init__('planner')
-        self.idle = idle_node
-
         self.pub = self.create_publisher(AttitudeTarget, '/uav1/setpoint_raw/attitude', 10)
         self.arm_client = self.create_client(CommandBool, '/uav1/cmd/arming')
 
@@ -49,13 +48,14 @@ class Planner(Node):
         )
         self._last_msg.orientation = euler_to_quaternion(0,0,0)
         self._last_msg.body_rate = Vector3()
-        self._last_msg.thrust = 0.0
+        self._last_msg.thrust = 0.0  # нулевая тяга при инициализации
 
         self._trajectory = deque()
         self._target_altitude = 0.5
 
+        # Таймер для выполнения траектории
         self.create_timer(0.05, self._step_trajectory)
-        self.get_logger().info("Planner ready and publishing /uav1/setpoint_raw/attitude")
+        self.get_logger().info("Planner ready and publishing /mavros/setpoint_raw/attitude")
 
     def arm_uav(self):
         if not self.arm_client.wait_for_service(timeout_sec=5.0):
@@ -71,6 +71,24 @@ class Planner(Node):
         else:
             self.get_logger().error("Failed to arm UAV")
             return False
+
+    def send_zero_attitude(self, count=10):
+        zero_msg = AttitudeTarget()
+        zero_msg.header.frame_id = "base_link"
+        zero_msg.orientation = euler_to_quaternion(0,0,0)
+        zero_msg.body_rate = Vector3(x=0.0, y=0.0, z=0.0)
+        zero_msg.thrust = 0.0
+        zero_msg.type_mask = (
+            AttitudeTarget.IGNORE_ROLL_RATE |
+            AttitudeTarget.IGNORE_PITCH_RATE |
+            AttitudeTarget.IGNORE_YAW_RATE
+        )
+        for _ in range(count):
+            zero_msg.header.stamp = self.get_clock().now().to_msg()
+            self.pub.publish(zero_msg)
+            if DEBUG:
+                self.get_logger().info("[DEBUG] Sending zero AttitudeTarget")
+            time.sleep(0.05)  # 20Hz
 
     def _step_trajectory(self):
         if not self._trajectory:
@@ -94,16 +112,22 @@ class Planner(Node):
         self._last_msg = msg
         self.pub.publish(msg)
 
+        if DEBUG:
+            self.get_logger().info(
+                f"[DEBUG] Step t={t:.2f}s | vx={vx:.2f}, vy={vy:.2f}, vz={vz:.2f} | "
+                f"roll={math.degrees(roll):.2f}°, pitch={math.degrees(pitch):.2f}°, thrust={thrust:.2f}"
+            )
+
     def execute_callback(self, goal_handle):
         self.get_logger().info("NavigateToPose goal received")
-
-        # 1. Выключаем Idle
-        self.idle.disable()
-
-        # 2. Армим UAV
+        self.send_zero_attitude(count=10)
+        # Армим UAV перед стартом
         if not self.arm_uav():
             goal_handle.abort()
             return NavigateToPose.Result()
+
+        # Отправка "нулевых" сетпоинтов для обнуления состояния
+        self.send_zero_attitude(count=10)
 
         start = [0.0,0.0,0.0]
         goal = [
@@ -112,25 +136,23 @@ class Planner(Node):
             goal_handle.request.pose.pose.position.z
         ]
 
-        # 3. Планируем траекторию
         trajectory = self.plan(start, goal)
         self._trajectory = deque(trajectory)
         self._target_altitude = goal[2]
 
-        # 4. Feedback
+        if DEBUG:
+            self.get_logger().info(f"[DEBUG] Goal: x={goal[0]:.2f}, y={goal[1]:.2f}, z={goal[2]:.2f}")
+            self.get_logger().info(f"[DEBUG] Trajectory steps: {len(trajectory)}")
+
+        # feedback
         for t,vx,vy,vz in trajectory:
             fb = NavigateToPose.Feedback()
             fb.current_pose = PoseStamped()
             fb.current_pose.pose.position = Point(x=vx, y=vy, z=vz)
             goal_handle.publish_feedback(fb)
 
-        # 5. Движение выполнено
         goal_handle.succeed()
         self.get_logger().info("Trajectory finished")
-
-        # 6. Включаем Idle
-        self.idle.enable()
-
         return NavigateToPose.Result()
 
     def plan(self, start, goal, v_max=1.0, a_max=0.5, dt=0.1):
@@ -162,17 +184,17 @@ class Planner(Node):
             v_vec = unit_dir*v
             trajectory.append((t,v_vec[0],v_vec[1],v_vec[2]))
             t += dt
+        if DEBUG:
+            self.get_logger().info(f"[DEBUG] Planned trajectory length: {len(trajectory)} steps")
         return trajectory
 
 def main(args=None):
     rclpy.init(args=args)
-    idle_node = Idle()
-    planner = Planner(idle_node)
+    planner = Planner()
     try:
         rclpy.spin(planner)
     finally:
         planner.destroy_node()
-        idle_node.destroy_node()
         rclpy.shutdown()
 
 if __name__ == '__main__':
