@@ -1,9 +1,9 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer
-from geometry_msgs.msg import PoseStamped, Point, Vector3, Quaternion
+from geometry_msgs.msg import Point, PoseStamped, Vector3, Quaternion
 from mavros_msgs.msg import AttitudeTarget
-from sensor_msgs.msg import Imu
+from mavros_msgs.srv import CommandBool
 from nav2_msgs.action import NavigateToPose
 import math
 import numpy as np
@@ -26,113 +26,132 @@ def euler_to_quaternion(roll, pitch, yaw):
     q.z = cr*cp*sy - sr*sp*cy
     return q
 
-class Idle(Node):
-    """Держит дрон в позиции x,y,z и компенсирует наклон через IMU"""
-    def __init__(self):
-        super().__init__('idle')
-        self.pub = self.create_publisher(AttitudeTarget, '/uav1/setpoint_raw/attitude', 10)
-        self.sub_imu = self.create_subscription(Imu, '/uav1/imu/data', self.imu_callback, 10)
-        self.sub_pos = self.create_subscription(PoseStamped, '/uav1/global_position/local', self.pos_callback, 10)
-        self.target_pos = None
-        self.current_pos = None
-        self.current_imu = None
-        self.kp_xy = 0.5
-        self.kp_z = 0.5
-        self.publish_hz = 20.0
-        self.timer = self.create_timer(1.0/self.publish_hz, self._hold_position)
-        self.active = True
-
-    def imu_callback(self, msg):
-        self.current_imu = msg
-
-    def pos_callback(self, msg):
-        self.current_pos = msg.pose.position
-        if self.target_pos is None:
-            self.target_pos = Point(
-                x=self.current_pos.x,
-                y=self.current_pos.y,
-                z=self.current_pos.z
-            )
-
-    def _hold_position(self):
-        if not self.active or self.current_pos is None or self.current_imu is None or self.target_pos is None:
-            return
-
-        # Ошибка по позиции
-        ex = self.target_pos.x - self.current_pos.x
-        ey = self.target_pos.y - self.current_pos.y
-        ez = self.target_pos.z - self.current_pos.z
-
-        # Простая компенсация крена/тангажа по ошибке
-        roll_cmd = np.clip(-ey * self.kp_xy, -0.2, 0.2)
-        pitch_cmd = np.clip(ex * self.kp_xy, -0.2, 0.2)
-        thrust_cmd = np.clip(0.5 + ez*self.kp_z, 0.0, 1.0)
-
-        msg = AttitudeTarget()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.orientation = euler_to_quaternion(roll_cmd, pitch_cmd, 0.0)
-        msg.body_rate = Vector3()
-        msg.thrust = thrust_cmd
-        msg.type_mask = (
-            AttitudeTarget.IGNORE_ROLL_RATE |
-            AttitudeTarget.IGNORE_PITCH_RATE |
-            AttitudeTarget.IGNORE_YAW_RATE
-        )
-        self.pub.publish(msg)
-
-    def enable(self):
-        self.active = True
-        if self.current_pos is not None:
-            self.target_pos = Point(
-                x=self.current_pos.x,
-                y=self.current_pos.y,
-                z=self.current_pos.z
-            )
-
-    def disable(self):
-        self.active = False
-
 class Planner(Node):
-    """Принимает NavigateToPose и летит к цели с отключением Idle"""
     def __init__(self, idle_node):
         super().__init__('planner')
         self.idle = idle_node
+
         self.pub = self.create_publisher(AttitudeTarget, '/uav1/setpoint_raw/attitude', 10)
+        self.arm_client = self.create_client(CommandBool, '/uav1/cmd/arming')
+
         self._action_server = ActionServer(
             self,
             NavigateToPose,
             'navigate_to_pose',
             self.execute_callback
         )
+
+        self._last_msg = AttitudeTarget()
+        self._last_msg.type_mask = (
+            AttitudeTarget.IGNORE_ROLL_RATE |
+            AttitudeTarget.IGNORE_PITCH_RATE |
+            AttitudeTarget.IGNORE_YAW_RATE
+        )
+        self._last_msg.orientation = euler_to_quaternion(0,0,0)
+        self._last_msg.body_rate = Vector3()
+        self._last_msg.thrust = 0.0
+
         self._trajectory = deque()
-        self.timer = self.create_timer(0.05, self._step_trajectory)
-        self.kp_xy = 0.5
-        self.kp_z = 0.5
-        self.current_pos = None
-        self.sub_pos = self.create_subscription(PoseStamped, '/uav1/global_position/local', self.pos_callback, 10)
+        self._target_altitude = 0.5
 
-    def pos_callback(self, msg):
-        self.current_pos = msg.pose.position
+        self.create_timer(0.05, self._step_trajectory)
+        self.get_logger().info("Planner ready and publishing /uav1/setpoint_raw/attitude")
 
-    def plan_trajectory(self, start, goal, v_max=1.0, a_max=0.5, dt=0.1):
+    def arm_uav(self):
+        if not self.arm_client.wait_for_service(timeout_sec=5.0):
+            self.get_logger().error("Arming service not available")
+            return False
+        req = CommandBool.Request()
+        req.value = True
+        future = self.arm_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        if future.result().success:
+            self.get_logger().info("UAV armed successfully")
+            return True
+        else:
+            self.get_logger().error("Failed to arm UAV")
+            return False
+
+    def _step_trajectory(self):
+        if not self._trajectory:
+            return
+        t, vx, vy, vz = self._trajectory.popleft()
+
+        pitch = math.atan2(vx, G)
+        roll = math.atan2(-vy, G)
+        thrust = max(0.0, min(1.0, 0.5 + 0.4*(self._target_altitude - vz)))
+
+        msg = AttitudeTarget()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.orientation = euler_to_quaternion(roll, pitch, 0.0)
+        msg.body_rate = Vector3()
+        msg.thrust = thrust
+        msg.type_mask = (
+            AttitudeTarget.IGNORE_ROLL_RATE |
+            AttitudeTarget.IGNORE_PITCH_RATE |
+            AttitudeTarget.IGNORE_YAW_RATE
+        )
+        self._last_msg = msg
+        self.pub.publish(msg)
+
+    def execute_callback(self, goal_handle):
+        self.get_logger().info("NavigateToPose goal received")
+
+        # 1. Выключаем Idle
+        self.idle.disable()
+
+        # 2. Армим UAV
+        if not self.arm_uav():
+            goal_handle.abort()
+            return NavigateToPose.Result()
+
+        start = [0.0,0.0,0.0]
+        goal = [
+            goal_handle.request.pose.pose.position.x,
+            goal_handle.request.pose.pose.position.y,
+            goal_handle.request.pose.pose.position.z
+        ]
+
+        # 3. Планируем траекторию
+        trajectory = self.plan(start, goal)
+        self._trajectory = deque(trajectory)
+        self._target_altitude = goal[2]
+
+        # 4. Feedback
+        for t,vx,vy,vz in trajectory:
+            fb = NavigateToPose.Feedback()
+            fb.current_pose = PoseStamped()
+            fb.current_pose.pose.position = Point(x=vx, y=vy, z=vz)
+            goal_handle.publish_feedback(fb)
+
+        # 5. Движение выполнено
+        goal_handle.succeed()
+        self.get_logger().info("Trajectory finished")
+
+        # 6. Включаем Idle
+        self.idle.enable()
+
+        return NavigateToPose.Result()
+
+    def plan(self, start, goal, v_max=1.0, a_max=0.5, dt=0.1):
         start, goal = np.array(start), np.array(goal)
         direction = goal - start
         distance = np.linalg.norm(direction)
         if distance == 0:
-            return [(0,0,0,0)]
+            return [(0.0,0.0,0.0,0.0)]
         unit_dir = direction / distance
         t_acc = v_max / a_max
         d_acc = 0.5*a_max*t_acc**2
         if 2*d_acc > distance:
-            v_peak = np.sqrt(a_max*distance)
+            v_peak = math.sqrt(a_max*distance)
             t_acc = v_peak / a_max
             t_total = 2*t_acc
         else:
-            d_cruise = distance - 2*d_acc
-            t_cruise = d_cruise / v_max
+            d_cruise = distance-2*d_acc
+            t_cruise = d_cruise/v_max
             t_total = 2*t_acc + t_cruise
-        trajectory = []
-        t = 0.0
+        trajectory=[]
+        t=0.0
         while t <= t_total+dt:
             if t < t_acc:
                 v = a_max*t
@@ -145,52 +164,16 @@ class Planner(Node):
             t += dt
         return trajectory
 
-    def _step_trajectory(self):
-        if not self._trajectory or self.current_pos is None:
-            return
-        t, vx, vy, vz = self._trajectory.popleft()
-        # Ошибка по позиции
-        ex = (self._goal_pos.x - self.current_pos.x)
-        ey = (self._goal_pos.y - self.current_pos.y)
-        ez = (self._goal_pos.z - self.current_pos.z)
-        roll_cmd = np.clip(-ey * self.kp_xy, -0.2, 0.2)
-        pitch_cmd = np.clip(ex * self.kp_xy, -0.2, 0.2)
-        thrust_cmd = np.clip(0.5 + ez*self.kp_z, 0.0,1.0)
-        msg = AttitudeTarget()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.orientation = euler_to_quaternion(roll_cmd, pitch_cmd, 0.0)
-        msg.body_rate = Vector3()
-        msg.thrust = thrust_cmd
-        msg.type_mask = (
-            AttitudeTarget.IGNORE_ROLL_RATE |
-            AttitudeTarget.IGNORE_PITCH_RATE |
-            AttitudeTarget.IGNORE_YAW_RATE
-        )
-        self.pub.publish(msg)
-
-    def execute_callback(self, goal_handle):
-        self.get_logger().info("NavigateToPose goal received, disabling Idle")
-        self.idle.disable()
-        self._goal_pos = goal_handle.request.pose.pose.position
-        start = [self.current_pos.x, self.current_pos.y, self.current_pos.z] if self.current_pos else [0,0,0]
-        goal = [self._goal_pos.x, self._goal_pos.y, self._goal_pos.z]
-        self._trajectory = deque(self.plan_trajectory(start, goal))
-        goal_handle.succeed()
-        self.get_logger().info("Trajectory loaded, Idle will resume after completion")
-        # по завершению траектории включаем Idle
-        self.idle.enable()
-        return NavigateToPose.Result()
-
 def main(args=None):
     rclpy.init(args=args)
     idle_node = Idle()
-    planner_node = Planner(idle_node)
+    planner = Planner(idle_node)
     try:
-        rclpy.spin(planner_node)
+        rclpy.spin(planner)
     finally:
-        planner_node.destroy_node()
+        planner.destroy_node()
         idle_node.destroy_node()
         rclpy.shutdown()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
