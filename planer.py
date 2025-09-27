@@ -102,11 +102,17 @@ class Planner(Node):
         if not self.arm_client.wait_for_service(timeout_sec=5.0):
             self.get_logger().error("Arming service not available")
             return False
+
         req = CommandBool.Request()
         req.value = True
-        future = self.arm_client.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
-        if future.result() and future.result().success:
+
+        try:
+            result = self.arm_client.call(req)  # СИНХРОННЫЙ вызов
+        except Exception as e:
+            self.get_logger().error(f"Arming call failed: {e}")
+            return False
+
+        if result and result.success:
             self.get_logger().info("UAV armed successfully")
             return True
         else:
